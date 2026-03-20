@@ -20,13 +20,12 @@ const SignUpForm = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      // 1. Send data to your Flask API
-      const response = await fetch('http://localhost:5000/api/signup', {
+// 1. Send data to your LIVE Render API
+      const response = await fetch('https://hostel-backend-39y0.onrender.com/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fullname: formData.fullName, // Matches the key in app.py
+          fullname: formData.fullName,
           email: formData.email,
           password: formData.password
         })
