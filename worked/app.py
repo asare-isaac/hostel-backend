@@ -5,7 +5,7 @@ import os
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app, resources={r"/*": {"origins": "*"}}) 
 
 # --- CONFIGURATION ---
 # Checks for Render's DATABASE_URL first, falls back to local pgAdmin
@@ -52,6 +52,14 @@ class Student(db.Model):
     receipt_url = db.Column(db.String(255))
     room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'))
 
+class Receipt(db.Model):
+    __tablename__ = 'receipts'
+    id = db.Column(db.Integer, primary_key=True)
+    student_name = db.Column(db.String(100), nullable=False)
+    student_email = db.Column(db.String(100), nullable=False)
+    receipt_url = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(20), default='Pending') # Pending, Approved, Declined
+
 # --- DATABASE INITIALIZATION ---
 with app.app_context():
     # 1. Create all tables in Neon/Local
@@ -83,6 +91,7 @@ with app.app_context():
         print("36 Rooms seeded successfully!")
 
 # --- ROUTES ---
+
 
 @app.route('/api/signup', methods=['POST'])
 def signup():
@@ -169,9 +178,60 @@ def accept_student(student_id):
         return jsonify({"message": "Payment verified!"})
     return jsonify({"error": "Student not found"}), 404
 
-@app.route('/uploads/<filename>')
-def serve_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/api/upload-receipt', methods=['POST'])
+def upload_receipt():
+    try:
+        # 1. Get the data from the form
+        student_name = request.form.get('student_name')
+        student_email = request.form.get('student_email')
+        file = request.files.get('receipt')
+
+        if not file or not student_name:
+            return jsonify({"success": False, "message": "Missing file or name"}), 400
+
+        # 2. Save the file safely
+        filename = secure_filename(f"{student_name}_{file.filename}")
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
+
+        # 3. Create the Database Record
+        # (This uses the 'Receipt' class we added earlier)
+        new_receipt = Receipt(
+            student_name=student_name,
+            student_email=student_email,
+            receipt_url=f"/uploads/{filename}", # This matches your serve_file route!
+            status='Pending'
+        )
+        
+        db.session.add(new_receipt)
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "Receipt uploaded successfully!"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/receipts/<int:id>', methods=['DELETE'])
+def delete_receipt(id):
+    try:
+        receipt = Receipt.query.get(id)
+        if not receipt:
+            return jsonify({"success": False, "message": "Receipt record not found"}), 404
+        
+        # Optional: Delete the physical file from the 'uploads' folder if you want
+        # if receipt.receipt_url:
+        #     file_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(receipt.receipt_url))
+        #     if os.path.exists(file_path):
+        #         os.remove(file_path)
+
+        db.session.delete(receipt)
+        db.session.commit()
+        
+        return jsonify({"success": True, "message": "Receipt declined and removed successfully!"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
