@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
-// 1. We now accept both setRole and setName from App.jsx
 const LoginForm = ({ setUserRole, setUserName }) => { 
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -15,7 +14,8 @@ const LoginForm = ({ setUserRole, setUserName }) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // 2. TALK TO RENDER: Now pointing to your live backend
+    try {
+      // 1. UPDATED URL: Now pointing to your live Render backend
       const response = await fetch('https://hostel-backend-39y0.onrender.com/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -25,22 +25,24 @@ const LoginForm = ({ setUserRole, setUserName }) => {
       const data = await response.json();
 
       if (data.success) {
-        // 3. SAVE TO BROWSER MEMORY: Fixes the "Refresh" problem
-        localStorage.setItem('userName', data.user_name);
-        localStorage.setItem('userRole', data.role);
+        // 2. SAVE TO BROWSER MEMORY (with safety check for Vercel build)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('userName', data.user_name);
+          localStorage.setItem('userRole', data.role);
+        }
 
-        // 4. UPDATE APP STATE: Updates the UI immediately
+        // 3. UPDATE APP STATE
         setUserRole(data.role);
         setUserName(data.user_name);
 
-        // 5. GO TO DASHBOARD
+        // 4. GO TO DASHBOARD
         navigate('/dashboard');
       } else {
         alert(data.message || "Invalid Email or Password");
       }
     } catch (error) {
       console.error("Login Error:", error);
-      alert("Could not connect to the server. Is Flask running?");
+      alert("Could not connect to the server. Please wait a moment for the server to wake up and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +77,7 @@ const LoginForm = ({ setUserRole, setUserName }) => {
           <div>
             <div className="flex justify-between mb-1">
               <label className="block text-sm font-medium text-slate-700">Password</label>
-              <a href="#" className="text-sm text-blue-600 hover:underline">Forgot?</a>
+              <button type="button" className="text-sm text-blue-600 hover:underline">Forgot?</button>
             </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
