@@ -8,7 +8,7 @@ app = Flask(__name__)
 CORS(app) 
 
 # --- CONFIGURATION ---
-# This looks for the Neon URL on Render. If not found, it uses your local pgAdmin.
+# Checks for Render's DATABASE_URL first, falls back to local pgAdmin
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -52,10 +52,12 @@ class Student(db.Model):
     receipt_url = db.Column(db.String(255))
     room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'))
 
-# --- AUTOMATIC TABLE CREATION (For Render/Neon) ---
+# --- DATABASE INITIALIZATION ---
 with app.app_context():
+    # 1. Create all tables in Neon/Local
     db.create_all()
-    # Ensure default admin exists in the cloud
+
+    # 2. Seed Default Admin
     if not User.query.filter_by(email='admin@hostel.com').first():
         test_admin = User(
             fullname="System Admin", 
@@ -65,7 +67,20 @@ with app.app_context():
         )
         db.session.add(test_admin)
         db.session.commit()
-        print("Database initialized and Admin created!")
+        print("Admin user created!")
+
+    # 3. Seed 36 Rooms if the table is empty
+    if not Room.query.first():
+        print("Seeding rooms...")
+        # 18 Male Rooms
+        for i in range(1, 19):
+            db.session.add(Room(room_number=f"M{i}", room_type="Male", max_capacity=4))
+        # 18 Female Rooms
+        for i in range(1, 19):
+            db.session.add(Room(room_number=f"F{i}", room_type="Female", max_capacity=4))
+        
+        db.session.commit()
+        print("36 Rooms seeded successfully!")
 
 # --- ROUTES ---
 
@@ -73,19 +88,18 @@ with app.app_context():
 def signup():
     try:
         data = request.json
-        fullname = data.get('fullname')
-        email = data.get('email')
-        password = data.get('password')
-
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
+        if User.query.filter_by(email=data.get('email')).first():
             return jsonify({"success": False, "message": "Email already registered!"}), 400
-
-        new_user = User(fullname=fullname, email=email, password=password, role='student')
+        
+        new_user = User(
+            fullname=data.get('fullname'), 
+            email=data.get('email'), 
+            password=data.get('password'), 
+            role='student'
+        )
         db.session.add(new_user)
         db.session.commit()
-
-        return jsonify({"success": True, "message": "Account created successfully!"}), 201
+        return jsonify({"success": True, "message": "Account created!"}), 201
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
