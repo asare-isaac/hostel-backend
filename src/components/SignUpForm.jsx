@@ -20,12 +20,13 @@ const SignUpForm = () => {
     e.preventDefault();
     setIsLoading(true);
 
-// 1. Send data to your LIVE Render API
+    try {
+      // 1. UPDATED URL: Now pointing to your live Render API
       const response = await fetch('https://hostel-backend-39y0.onrender.com/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fullname: formData.fullName,
+          fullname: formData.fullName, 
           email: formData.email,
           password: formData.password
         })
@@ -42,7 +43,7 @@ const SignUpForm = () => {
       }
     } catch (error) {
       console.error("Signup Error:", error);
-      alert("Could not connect to the server.");
+      alert("Could not connect to the server. Please wait a moment for the server to wake up and try again.");
     } finally {
       setIsLoading(false);
     }
