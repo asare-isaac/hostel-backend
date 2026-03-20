@@ -15,9 +15,8 @@ const LoginForm = ({ setUserRole, setUserName }) => {
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      // 2. TALK TO FLASK: This matches the /api/login route we created in app.py
-      const response = await fetch('http://localhost:5000/api/login', {
+    // 2. TALK TO RENDER: Now pointing to your live backend
+      const response = await fetch('https://hostel-backend-39y0.onrender.com/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
