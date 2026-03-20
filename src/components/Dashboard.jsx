@@ -32,7 +32,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   // --- API FETCH FUNCTIONS (The "Engine") ---
   const fetchRooms = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/rooms');
+      const res = await fetch(' https://hostel-backend-39y0.onrender.com/api/rooms');
       const data = await res.json();
       setRooms(data);
     } catch (err) {
@@ -42,7 +42,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const fetchStudents = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/students');
+      const res = await fetch(' https://hostel-backend-39y0.onrender.com/api/students');
       const data = await res.json();
       setStudentsList(data);
     } catch (err) {
@@ -83,7 +83,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     formData.append('roomNumber', selectedRoom.number);
 
     try {
-      const response = await fetch('http://localhost:5000/api/book', {
+      const response = await fetch(' https://hostel-backend-39y0.onrender.com/api/book', {
         method: 'POST',
         body: formData,
       });
@@ -101,7 +101,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const handleAccept = async (studentId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/accept-student/${studentId}`, {
+      const response = await fetch(` https://hostel-backend-39y0.onrender.com/api/accept-student/${studentId}`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -380,7 +380,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden group">
                   {/* REAL IMAGE FROM FLASK UPLOADS */}
                   <img 
-                    src={`http://localhost:5000/uploads/${selectedStudent.receipt}`} 
+                    src={` https://hostel-backend-39y0.onrender.com/uploads/${selectedStudent.receipt}`} 
                     className="w-full h-full object-cover" 
                     alt="Receipt" 
                     onError={(e) => { e.target.src = "https://via.placeholder.com/300x150?text=Receipt+Not+Found"; }}
