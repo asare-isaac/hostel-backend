@@ -117,33 +117,27 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   };
 
  const handleDecline = async (studentId) => {
-  // 1. Ask for confirmation so you don't delete by accident
-  if (!window.confirm("Are you sure you want to decline and delete this receipt?")) return;
+  if (!window.confirm("Delete this student's record?")) return;
 
   try {
-    // 2. Tell the Backend to delete it from the Database
-    const response = await fetch(`https://hostel-backend-39y0.onrender.com/api/receipts/${studentId}`, {
+    // NOTICE: The URL now says /api/students/ not /api/receipts/
+    const response = await fetch(`https://hostel-backend-39y0.onrender.com/api/students/${studentId}`, {
       method: 'DELETE',
     });
 
     const data = await response.json();
 
     if (data.success) {
-      // 3. Close the modal
       setShowReviewModal(false);
       setSelectedStudent(null);
-      
-      // 4. THE MAGIC STEP: Remove the student from your local list 
-      // This makes the orange button disappear immediately!
-      setStudents(prevStudents => prevStudents.filter(s => s.id !== studentId));
-      
-      alert("Receipt declined and record removed.");
+      // This removes the student from your screen immediately
+      setStudents(prev => prev.filter(s => s.id !== studentId));
+      alert("Student record deleted successfully.");
     } else {
-      alert("Error: " + (data.message || "Could not delete from database"));
+      alert("Error: " + data.message);
     }
   } catch (error) {
-    console.error("Decline Error:", error);
-    alert("Connection failed. Is your Render backend awake?");
+    alert("Server is sleeping. Please wait a moment and try again.");
   }
 };
 
