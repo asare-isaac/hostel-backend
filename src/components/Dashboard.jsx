@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Bell, LayoutDashboard, Bed, Users,
-  CreditCard, Settings, LogOut, Search, Plus,
-  MapPin, Phone, ShieldCheck, Clock, X, Wrench, UserPlus,
+  CreditCard, LogOut, Search,
+  MapPin, Phone, ShieldCheck,
   ChevronLeft, ChevronRight, UploadCloud, AlertCircle,
-  CheckCircle, RefreshCw
+  CheckCircle, RefreshCw, X
 } from 'lucide-react';
 
 // Assets
@@ -19,9 +19,12 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState(false); // FIX: tracks success state for student
+  const [bookingSuccess, setBookingSuccess] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false); // NEW: mobile sidebar toggle
+
+  const sidebarRef = useRef(null);
 
   // Database State
   const [studentsList, setStudentsList] = useState([]);
@@ -53,6 +56,27 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     fetchStudents();
   }, []);
 
+  // Close sidebar when tapping outside on mobile
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
+        setSidebarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [sidebarOpen]);
+
+  // Lock body scroll when mobile sidebar is open
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [sidebarOpen]);
+
   // --- 3. UI LOGIC (SLIDESHOW & PROFILE) ---
   const hostelImages = [blockA, blockB, blockC];
   const displayUserName = userName || "Guest User";
@@ -66,10 +90,16 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     return () => clearInterval(timer);
   }, [currentSlide]);
 
+  // Navigate and close sidebar on mobile
+  const handleNavClick = (tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  };
+
   // --- 4. ACTION HANDLERS ---
   const handleOpenBooking = (room) => {
     setSelectedRoom(room);
-    setBookingSuccess(false); // reset success state each time modal opens
+    setBookingSuccess(false);
     setShowBookingModal(true);
   };
 
@@ -85,7 +115,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
       });
 
       if (response.ok) {
-        // FIX: show success screen to student instead of closing immediately
         setBookingSuccess(true);
         fetchStudents();
         fetchRooms();
@@ -116,12 +145,10 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const handleDecline = async (studentId) => {
     if (!window.confirm("Permanently delete this record?")) return;
-
     try {
       const response = await fetch(`https://hostel-backend-39y0.onrender.com/api/students/${studentId}`, {
         method: 'DELETE',
       });
-
       if (response.ok) {
         setStudentsList(prev => prev.filter(s => s.id !== studentId));
         setShowReviewModal(false);
@@ -146,64 +173,146 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const pendingPaymentsCount = studentsList.filter(s => s.status === 'Pending').length;
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-slate-900 text-white hidden md:flex flex-col">
-        <div className="p-6 text-2xl font-bold border-b border-slate-800 tracking-tight text-blue-400">
-          HostelHub <span className="text-[10px] bg-blue-500/20 px-2 py-0.5 rounded text-blue-200">v2.0</span>
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+
+      {/* ── MOBILE BACKDROP ── */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── SIDEBAR ── */}
+      <aside
+        ref={sidebarRef}
+        className={`
+          fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col
+          transition-transform duration-300 ease-in-out
+          md:relative md:w-64 md:translate-x-0 md:z-auto
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}
+      >
+        {/* Logo row */}
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <span className="text-2xl font-bold tracking-tight text-blue-400">
+            HostelHub{' '}
+            <span className="text-[10px] bg-blue-500/20 px-2 py-0.5 rounded text-blue-200">v2.0</span>
+          </span>
+          {/* X close button — mobile only */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            aria-label="Close sidebar"
+          >
+            <X size={20} />
+          </button>
         </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <NavItem icon={<LayoutDashboard size={20}/>} label="Overview" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
-          <NavItem icon={<Bed size={20}/>} label="Room Allotment" active={activeTab === 'rooms'} onClick={() => setActiveTab('rooms')} />
-          <NavItem icon={<Users size={20}/>} label="Students list" active={activeTab === 'students'} onClick={() => setActiveTab('students')} />
-          <NavItem icon={<MapPin size={20}/>} label="Blocks & Layout" active={activeTab === 'blocks'} onClick={() => setActiveTab('blocks')} />
+
+        {/* User pill — mobile only */}
+        <div className="md:hidden px-4 py-4 border-b border-slate-800">
+          <div className="flex items-center gap-3 bg-slate-800 rounded-xl px-4 py-3">
+            <img src={profileImage} className="h-9 w-9 rounded-full border-2 border-blue-500 shrink-0" alt="profile" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">{userName}</p>
+              <p className="text-[10px] text-blue-400 font-bold uppercase">{userRole}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <NavItem icon={<LayoutDashboard size={20}/>} label="Overview"       active={activeTab === 'overview'} onClick={() => handleNavClick('overview')} />
+          <NavItem icon={<Bed size={20}/>}             label="Room Allotment" active={activeTab === 'rooms'}    onClick={() => handleNavClick('rooms')} />
+          <NavItem icon={<Users size={20}/>}           label="Students list"  active={activeTab === 'students'} onClick={() => handleNavClick('students')} />
+          <NavItem icon={<MapPin size={20}/>}          label="Blocks & Layout" active={activeTab === 'blocks'}  onClick={() => handleNavClick('blocks')} />
         </nav>
+
+        {/* Logout */}
         <div className="p-4 border-t border-slate-800">
-          <button onClick={onLogout} className="flex items-center gap-3 text-slate-400 hover:text-white hover:bg-slate-800 w-full px-4 py-3 rounded-xl text-sm font-bold uppercase transition-all">
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-3 text-slate-400 hover:text-white hover:bg-slate-800 w-full px-4 py-3 rounded-xl text-sm font-bold uppercase transition-all"
+          >
             <LogOut size={20}/> <span>Logout</span>
           </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* ── MAIN AREA ── */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+
         {/* HEADER */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
-          <h1 className="text-xl font-bold text-slate-800 capitalize tracking-tight">{activeTab}</h1>
-          <div className="flex items-center gap-6">
-            <button onClick={() => { fetchRooms(); fetchStudents(); }} className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-full transition-all group">
-              <RefreshCw size={20} className="group-active:rotate-180 transition-transform duration-500" />
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0 gap-3">
+
+          {/* Left: hamburger + page title */}
+          <div className="flex items-center gap-3 min-w-0">
+
+            {/* ── HAMBURGER BUTTON (mobile only) ── */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden flex flex-col justify-center items-center w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-700 active:scale-95 transition-all shrink-0 gap-[5px] group"
+              aria-label="Open menu"
+              aria-expanded={sidebarOpen}
+            >
+              <span className="block w-5 h-[2px] bg-white rounded-full" />
+              <span className="block w-3.5 h-[2px] bg-blue-400 rounded-full transition-all duration-200 group-hover:w-5" />
+              <span className="block w-5 h-[2px] bg-white rounded-full" />
             </button>
+
+            <h1 className="text-base md:text-xl font-bold text-slate-800 capitalize tracking-tight truncate">
+              {activeTab}
+            </h1>
+          </div>
+
+          {/* Right: refresh + bell + user */}
+          <div className="flex items-center gap-3 md:gap-6 shrink-0">
+            <button
+              onClick={() => { fetchRooms(); fetchStudents(); }}
+              className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-full transition-all group"
+              aria-label="Refresh"
+            >
+              <RefreshCw size={18} className="group-active:rotate-180 transition-transform duration-500" />
+            </button>
+
             <div className="relative text-slate-500">
-              <Bell size={22} />
+              <Bell size={20} />
               {pendingPaymentsCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 w-4 h-4 rounded-full text-[10px] text-white flex items-center justify-center font-bold">
                   {pendingPaymentsCount}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3 border-l pl-6 border-slate-200">
+
+            {/* Desktop user info */}
+            <div className="hidden md:flex items-center gap-3 border-l pl-6 border-slate-200">
               <div className="text-right">
                 <p className="text-sm font-bold text-slate-700 leading-none">{userName}</p>
                 <p className="text-[10px] text-blue-600 font-bold uppercase">{userRole}</p>
               </div>
               <img src={profileImage} className="h-9 w-9 rounded-full border-2 border-blue-500" alt="profile" />
             </div>
+
+            {/* Mobile: avatar only (full info shown inside sidebar) */}
+            <img src={profileImage} className="md:hidden h-8 w-8 rounded-full border-2 border-blue-500" alt="profile" />
           </div>
         </header>
 
         {/* MAIN CONTENT */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+
+          {/* OVERVIEW */}
           {activeTab === 'overview' && (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                 <StatCard title="Total Students" value={totalStudents} icon={<Users className="text-blue-600" />} trend="+Live" />
                 <StatCard title="Occupied Beds" value={occupiedBeds} icon={<Bed className="text-green-600" />} trend={`${occupancyRate}% Full`} />
                 <StatCard title="Pending Review" value={pendingPaymentsCount} icon={<CreditCard className="text-amber-600" />} trend="Action Required" />
                 <StatCard title="Health Score" value="98%" icon={<ShieldCheck className="text-emerald-600" />} trend="Safe" />
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Hostel Management Details</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+                <div className="lg:col-span-2 bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <h3 className="text-base md:text-lg font-bold text-slate-800 mb-4">Hostel Management Details</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <InfoBox icon={<ShieldCheck size={18}/>} label="Head Warden" value="Mr. Samuel Dogbatse" />
                     <InfoBox icon={<Phone size={18}/>} label="Emergency Line" value="+233 24 123 4567" />
@@ -211,8 +320,8 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                     <InfoBox icon={<MapPin size={18}/>} label="Primary Office" value="Block B, Ground Floor" />
                   </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">System Status</h3>
+                <div className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <h3 className="text-base md:text-lg font-bold text-slate-800 mb-4">System Status</h3>
                   <div className="space-y-4">
                     <ActivityItem label="Live Database" desc="Connected to Neon PostgreSQL" time="Status: Online" />
                     <ActivityItem label="Cloudinary Storage" desc="Receipts stored permanently" time="Status: Active" />
@@ -222,17 +331,55 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           )}
 
+          {/* STUDENTS */}
           {activeTab === 'students' && (
-            <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="space-y-5 animate-in fade-in duration-500">
               <div className="relative w-full md:w-96">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
-                  type="text" placeholder="Search students or rooms..."
-                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                  type="text"
+                  placeholder="Search students or rooms..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+
+              {/* Mobile card list */}
+              <div className="md:hidden space-y-3">
+                {filteredStudents.map((s) => (
+                  <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-bold text-slate-800 text-sm">{s.name}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{s.course}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                        {s.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">Room: <span className="font-bold text-slate-700">{s.room}</span></p>
+                    <div className="flex justify-end">
+                      {userRole === 'admin' && s.status === 'Pending' && (
+                        <button
+                          onClick={() => { setSelectedStudent(s); setShowReviewModal(true); }}
+                          className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold shadow transition-all animate-pulse"
+                        >
+                          <Search size={13} /> Review Receipt
+                        </button>
+                      )}
+                      {s.status === 'Paid' && (
+                        <div className="flex items-center gap-1.5 text-green-600 font-bold text-[10px] uppercase bg-green-50 px-3 py-1.5 rounded-lg border border-green-100">
+                          <ShieldCheck size={13} /> Verified
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
@@ -244,7 +391,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredStudents.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50 transition-colors group">
+                      <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-slate-800">{s.name}</span>
@@ -282,22 +429,24 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           )}
 
+          {/* ROOMS */}
           {activeTab === 'rooms' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 animate-in fade-in duration-500">
               {rooms.map((room) => (
                 <RoomCard key={room.id} room={room} onBook={handleOpenBooking} />
               ))}
             </div>
           )}
 
+          {/* BLOCKS */}
           {activeTab === 'blocks' && (
             <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="relative w-full h-80 rounded-2xl overflow-hidden shadow-lg mb-8 bg-slate-900">
+              <div className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="relative w-full h-56 md:h-80 rounded-2xl overflow-hidden shadow-lg bg-slate-900">
                   <img src={hostelImages[currentSlide]} className="w-full h-full object-cover duration-700" alt="Block View" />
-                  <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/20 rounded-full text-white"><ChevronLeft/></button>
-                  <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/20 rounded-full text-white"><ChevronRight/></button>
-                  <div className="absolute top-6 left-6 bg-blue-600 text-white px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest">
+                  <button onClick={prevSlide} className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-white/20 rounded-full text-white"><ChevronLeft size={20}/></button>
+                  <button onClick={nextSlide} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-white/20 rounded-full text-white"><ChevronRight size={20}/></button>
+                  <div className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
                     {currentSlide === 0 ? 'Block A' : currentSlide === 1 ? 'Block B' : 'Block C'} Perspective
                   </div>
                 </div>
@@ -305,20 +454,23 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           )}
         </main>
+      </div>
 
-        {/* MODAL: ADMIN REVIEW */}
-        {showReviewModal && selectedStudent && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowReviewModal(false)}></div>
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-200">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
-                <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors">✕</button>
-              </div>
-              <div className="space-y-6">
-                <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
-                  {/* FIX: selectedStudent.receipt is now a direct Cloudinary URL — use it straight */}
-                  {selectedStudent?.receipt ? (
+      {/* ── MODAL: ADMIN REVIEW ── */}
+      {showReviewModal && selectedStudent && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowReviewModal(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8 animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
+              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-5">
+              <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
+                {selectedStudent?.receipt ? (
+                  <>
                     <img
                       src={selectedStudent.receipt}
                       className="w-full h-full object-contain"
@@ -328,120 +480,125 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                         e.target.nextSibling.style.display = 'flex';
                       }}
                     />
-                  ) : null}
-                  <div
-                    style={{ display: selectedStudent?.receipt ? 'none' : 'flex' }}
-                    className="flex-col items-center justify-center w-full h-full"
-                  >
+                    <div style={{ display: 'none' }} className="absolute inset-0 flex-col items-center justify-center bg-blue-50">
+                      <AlertCircle className="text-blue-300 mb-2" size={32} />
+                      <p className="text-blue-400 text-sm font-medium italic">Image failed to load</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center">
                     <AlertCircle className="text-blue-300 mb-2" size={32} />
                     <p className="text-blue-400 text-sm font-medium italic">No receipt uploaded</p>
                   </div>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-2xl text-center">
-                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student</p>
-                  <h4 className="text-lg font-bold text-slate-700">{selectedStudent.name}</h4>
-                  <p className="text-xs text-slate-400 mt-1">Room: {selectedStudent.room}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <button onClick={() => handleDecline(selectedStudent.id)} className="py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all">Decline</button>
-                  <button onClick={() => handleAccept(selectedStudent.id)} className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg transition-all">Verify Now</button>
-                </div>
+                )}
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student</p>
+                <h4 className="text-lg font-bold text-slate-700">{selectedStudent.name}</h4>
+                <p className="text-xs text-slate-400 mt-1">Room: {selectedStudent.room}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => handleDecline(selectedStudent.id)} className="py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all">Decline</button>
+                <button onClick={() => handleAccept(selectedStudent.id)} className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg transition-all">Verify Now</button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* MODAL: BOOKING FORM */}
-        {showBookingModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-              onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
-            ></div>
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-300">
-
-              {bookingSuccess ? (
-                /* FIX: Student sees this confirmation screen after successful submit */
-                <div className="text-center space-y-5 py-4">
-                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle className="text-green-600" size={32} />
-                  </div>
-                  <h2 className="text-2xl font-bold text-slate-800">Booking Submitted!</h2>
-                  <p className="text-slate-500 text-sm leading-relaxed">
-                    Your receipt has been sent to the warden for Room <strong>{selectedRoom?.number}</strong>.<br/>
-                    You will be notified once your payment is verified.
-                  </p>
-                  <button
-                    onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
-                    className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all uppercase text-xs tracking-widest"
-                  >
-                    Done
-                  </button>
+      {/* ── MODAL: BOOKING FORM ── */}
+      {showBookingModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
+          />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8 animate-in zoom-in duration-300">
+            {bookingSuccess ? (
+              <div className="text-center space-y-5 py-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircle className="text-green-600" size={32} />
                 </div>
-              ) : (
-                /* FORM STATE */
-                <>
-                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Book Room {selectedRoom?.number}</h2>
-                  <p className="text-slate-400 text-sm mb-6">Fill in your details and upload your payment receipt.</p>
-                  <form className="space-y-6" onSubmit={handleBookingSubmit}>
-                    <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-8 bg-blue-50/40 text-center">
-                      <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required />
-                      <div className="flex flex-col items-center">
-                        <UploadCloud className="text-blue-500 mb-2" size={28} />
-                        <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
-                        <p className="text-xs text-slate-400 mt-1">JPG, PNG supported</p>
-                      </div>
+                <h2 className="text-2xl font-bold text-slate-800">Booking Submitted!</h2>
+                <p className="text-slate-500 text-sm leading-relaxed">
+                  Your receipt has been sent to the warden for Room <strong>{selectedRoom?.number}</strong>.<br/>
+                  You will be notified once your payment is verified.
+                </p>
+                <button
+                  onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
+                  className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all uppercase text-xs tracking-widest"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-1">Book Room {selectedRoom?.number}</h2>
+                <p className="text-slate-400 text-sm mb-6">Upload your payment receipt to complete booking.</p>
+                <form className="space-y-5" onSubmit={handleBookingSubmit}>
+                  <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-7 bg-blue-50/40 text-center">
+                    <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required />
+                    <div className="flex flex-col items-center">
+                      <UploadCloud className="text-blue-500 mb-2" size={28} />
+                      <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
+                      <p className="text-xs text-slate-400 mt-1">JPG, PNG supported</p>
                     </div>
-                    <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Full Name" required />
-                    <input name="phone" type="tel" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Phone Number" required />
-                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-5 rounded-3xl shadow-lg hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">
-                      Confirm Request
-                    </button>
-                  </form>
-                </>
-              )}
-
-            </div>
+                  </div>
+                  <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Full Name" required />
+                  <input name="phone" type="tel" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Phone Number" required />
+                  <button type="submit" className="w-full bg-blue-600 text-white font-bold py-5 rounded-3xl shadow-lg hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">
+                    Confirm Request
+                  </button>
+                </form>
+              </>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
 
-/* --- MINI COMPONENTS --- */
+/* ── MINI COMPONENTS ── */
+
 const NavItem = ({ icon, label, active, onClick }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${active ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:bg-slate-800 hover:text-white'}`}>
-    {icon} <span className="font-bold text-sm tracking-tight">{label}</span>
+  <button
+    onClick={onClick}
+    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all text-left ${
+      active ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+    }`}
+  >
+    {icon}
+    <span className="font-bold text-sm tracking-tight">{label}</span>
   </button>
 );
 
 const StatCard = ({ title, value, icon, trend }) => (
-  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+  <div className="bg-white p-4 md:p-6 rounded-3xl border border-slate-200 shadow-sm">
     <div className="flex justify-between items-start">
-      <div className="p-3 bg-slate-50 rounded-2xl text-blue-600">{icon}</div>
-      <span className="text-[10px] font-bold text-green-600 bg-green-50 px-3 py-1 rounded-full">{trend}</span>
+      <div className="p-2.5 md:p-3 bg-slate-50 rounded-2xl">{icon}</div>
+      <span className="text-[9px] md:text-[10px] font-bold text-green-600 bg-green-50 px-2 md:px-3 py-1 rounded-full">{trend}</span>
     </div>
-    <div className="mt-5">
-      <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">{title}</p>
-      <h4 className="text-3xl font-black text-slate-800">{value}</h4>
+    <div className="mt-4">
+      <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase mb-1">{title}</p>
+      <h4 className="text-2xl md:text-3xl font-black text-slate-800">{value}</h4>
     </div>
   </div>
 );
 
 const InfoBox = ({ icon, label, value }) => (
   <div className="p-4 bg-slate-50 rounded-xl flex items-center gap-3 border border-slate-100">
-    <div className="text-blue-500 p-2 bg-white rounded-lg shadow-sm">{icon}</div>
-    <div>
+    <div className="text-blue-500 p-2 bg-white rounded-lg shadow-sm shrink-0">{icon}</div>
+    <div className="min-w-0">
       <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{label}</p>
-      <p className="text-sm text-slate-800 font-bold">{value}</p>
+      <p className="text-sm text-slate-800 font-bold truncate">{value}</p>
     </div>
   </div>
 );
 
 const ActivityItem = ({ label, desc, time }) => (
   <div className="flex gap-3 pb-3 border-b border-slate-50 last:border-0">
-    <div className="h-2 w-2 mt-1.5 rounded-full bg-blue-500 shrink-0"></div>
+    <div className="h-2 w-2 mt-1.5 rounded-full bg-blue-500 shrink-0" />
     <div>
       <p className="text-xs font-bold text-slate-800">{label}</p>
       <p className="text-[11px] text-slate-500 font-medium">{desc}</p>
@@ -453,27 +610,31 @@ const ActivityItem = ({ label, desc, time }) => (
 const RoomCard = ({ room, onBook }) => {
   const isOccupied = room.status === 'Occupied';
   return (
-    <div className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-200 transition-all">
-      <div className="flex justify-between items-start mb-6">
+    <div className="bg-white p-5 md:p-7 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-200 transition-all">
+      <div className="flex justify-between items-start mb-5">
         <div>
-          <h4 className="text-xl font-black text-slate-800">Room {room.number}</h4>
+          <h4 className="text-lg md:text-xl font-black text-slate-800">Room {room.number}</h4>
           <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{room.type}</p>
         </div>
-        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${room.status === 'Available' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${
+          room.status === 'Available' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-blue-50 text-blue-600 border-blue-100'
+        }`}>
           {room.status}
         </span>
       </div>
-      <div className="w-full bg-slate-100 h-2 rounded-full mb-4">
+      <div className="w-full bg-slate-100 h-2 rounded-full mb-2">
         <div
           className="bg-blue-600 h-full rounded-full transition-all"
           style={{ width: `${(room.students / room.capacity) * 100}%` }}
-        ></div>
+        />
       </div>
       <p className="text-xs text-slate-400 mb-4 font-medium">{room.students} / {room.capacity} beds occupied</p>
       <button
         onClick={() => onBook(room)}
         disabled={isOccupied}
-        className={`w-full py-3 rounded-2xl font-bold text-xs transition-all ${isOccupied ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'}`}
+        className={`w-full py-3 rounded-2xl font-bold text-xs transition-all ${
+          isOccupied ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'
+        }`}
       >
         {isOccupied ? 'Room Full' : 'Book Now'}
       </button>
