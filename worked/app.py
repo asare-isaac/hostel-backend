@@ -151,7 +151,7 @@ def book_room():
         room = Room.query.filter_by(room_number=room_num).first()
         new_student = Student(
             full_name=name, phone_number=request.form.get('phone'),
-            course_name=request.form.get('course', 'Geomatic Engineering'),
+            course_name=request.form.get('course', 'University of Mines and Tech'),
             payment_status='Pending', receipt_url=filename, room_id=room.id if room else None
         )
         db.session.add(new_student)
@@ -221,6 +221,10 @@ def upload_receipt():
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/uploads/<path:filename>')
+def serve_uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/api/students/<int:id>', methods=['DELETE'])
 def delete_student_record(id):
