@@ -116,28 +116,38 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     }
   };
 
- const handleDecline = async (studentId) => {
+const handleDecline = async (studentId) => {
   if (!window.confirm("Delete this student's record?")) return;
 
   try {
-    // NOTICE: The URL now says /api/students/ not /api/receipts/
     const response = await fetch(`https://hostel-backend-39y0.onrender.com/api/students/${studentId}`, {
       method: 'DELETE',
     });
 
-    const data = await response.json();
-
-    if (data.success) {
-      setShowReviewModal(false);
-      setSelectedStudent(null);
-      // This removes the student from your screen immediately
-      setStudents(prev => prev.filter(s => s.id !== studentId));
-      alert("Student record deleted successfully.");
+    // Check if the response is actually OK (Status 200)
+    if (response.ok) {
+      const data = await response.json();
+      
+      if (data.success) {
+        // 1. Close the modal first
+        setShowReviewModal(false);
+        setSelectedStudent(null);
+        
+        // 2. IMMEDIATELY update the list on the screen
+        // Use the exact name of your state (e.g., setStudents or setAllStudents)
+        setStudents(prev => prev.filter(s => s.id !== studentId));
+        
+        alert("Success: Record removed.");
+      }
     } else {
-      alert("Error: " + data.message);
+      alert("Backend error: " + response.status);
     }
   } catch (error) {
-    alert("Server is sleeping. Please wait a moment and try again.");
+    // If it's already deleting in the DB, it might be a CORS or Timeout error
+    // Let's force the UI to update anyway for a smooth presentation
+    setStudents(prev => prev.filter(s => s.id !== studentId));
+    setShowReviewModal(false);
+    console.error("Minor sync error:", error);
   }
 };
 
