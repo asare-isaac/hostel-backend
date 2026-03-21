@@ -215,23 +215,27 @@ def upload_receipt():
 @app.route('/api/receipts/<int:id>', methods=['DELETE'])
 def delete_receipt(id):
     try:
-        receipt = Receipt.query.get(id)
-        if not receipt:
-            return jsonify({"success": False, "message": "Receipt record not found"}), 404
+        # 1. We look in the 'Student' table because that's where "Fiifi" is stored
+        student = Student.query.get(id)
         
-        # Optional: Delete the physical file from the 'uploads' folder if you want
-        # if receipt.receipt_url:
-        #     file_path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(receipt.receipt_url))
-        #     if os.path.exists(file_path):
-        #         os.remove(file_path)
-
-        db.session.delete(receipt)
+        if not student:
+            return jsonify({"success": False, "message": "Student record not found"}), 404
+        
+        # 2. Delete the student record
+        db.session.delete(student)
+        
+        # 3. Save the changes to Neon/Postgres
         db.session.commit()
         
-        return jsonify({"success": True, "message": "Receipt declined and removed successfully!"})
+        return jsonify({
+            "success": True, 
+            "message": f"Successfully declined and removed student: {student.full_name}"
+        })
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({"success": False, "message": str(e)}), 500
+        print(f"Delete Error: {str(e)}")
+        return jsonify({"success": False, "message": "Server error while deleting"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
