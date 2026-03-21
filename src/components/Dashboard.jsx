@@ -12,16 +12,16 @@ import blockA from '../assets/hero2.jpg';
 import blockB from '../assets/hero11.jpg';
 import blockC from '../assets/hero3.jpg';
 
-// ─── RING CHART COMPONENT ────────────────────────────────────────────────────
+// ─── RING CHART COMPONENT ─────────────────────────────────────────────────────
 const RingChart = ({ percent, color, size = 80, stroke = 8 }) => {
-  const r = (size - stroke) / 2;
+  const r    = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ - (percent / 100) * circ;
   return (
     <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke}/>
       <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none"
+        cx={size/2} cy={size/2} r={r} fill="none"
         stroke={color} strokeWidth={stroke}
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round"
@@ -31,46 +31,70 @@ const RingChart = ({ percent, color, size = 80, stroke = 8 }) => {
   );
 };
 
-// ─── FLOOR MAP ROOM CELL ─────────────────────────────────────────────────────
+// ─── FLOOR MAP ROOM CELL ──────────────────────────────────────────────────────
 const RoomCell = ({ room, onClick }) => {
   const pct = room.capacity > 0 ? (room.students / room.capacity) * 100 : 0;
-  const bg =
-    pct === 0   ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' :
-    pct < 100   ? 'bg-amber-50  border-amber-200  hover:border-amber-400'  :
-                  'bg-red-50    border-red-200    hover:border-red-400';
-  const dot =
-    pct === 0   ? 'bg-emerald-500' :
-    pct < 100   ? 'bg-amber-500'   :
-                  'bg-red-500';
+  const bg  = pct === 0   ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'
+            : pct < 100   ? 'bg-amber-50  border-amber-200  hover:border-amber-400'
+                          : 'bg-red-50    border-red-200    hover:border-red-400';
+  const dot = pct === 0   ? 'bg-emerald-500'
+            : pct < 100   ? 'bg-amber-500'
+                          : 'bg-red-500';
   return (
     <button
       onClick={() => onClick(room)}
       className={`relative border-2 rounded-xl p-2 text-center transition-all duration-200 hover:scale-105 hover:shadow-md cursor-pointer ${bg}`}
     >
-      <div className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${dot}`} />
+      <div className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${dot}`}/>
       <p className="text-[10px] font-black text-slate-700 leading-tight">{room.number}</p>
       <p className="text-[9px] text-slate-400 font-bold mt-0.5">{room.students}/{room.capacity}</p>
     </button>
   );
 };
 
-// ─── MAIN DASHBOARD ──────────────────────────────────────────────────────────
+// ─── RECEIPT IMAGE ────────────────────────────────────────────────────────────
+// Cloudinary URLs are full https:// links — just use them directly.
+const ReceiptImage = ({ url }) => {
+  const [errored, setErrored] = useState(false);
+
+  if (!url || errored) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-blue-50">
+        <AlertCircle className="text-blue-300 mb-2" size={32}/>
+        <p className="text-blue-400 text-sm font-medium italic">
+          {!url ? 'No receipt uploaded' : 'Image failed to load'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={url}
+      className="w-full h-full object-contain"
+      alt="Payment Receipt"
+      onError={() => setErrored(true)}
+    />
+  );
+};
+
+// ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 const Dashboard = ({ userRole, userName, onLogout }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showReviewModal, setShowReviewModal]   = useState(false);
-  const [currentSlide, setCurrentSlide]         = useState(0);
-  const [activeTab, setActiveTab]               = useState('overview');
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [currentSlide, setCurrentSlide]       = useState(0);
+  const [activeTab, setActiveTab]             = useState('overview');
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [bookingSuccess, setBookingSuccess]     = useState(false);
-  const [selectedRoom, setSelectedRoom]         = useState(null);
-  const [searchTerm, setSearchTerm]             = useState('');
-  const [sidebarOpen, setSidebarOpen]           = useState(false);
-  const [hoveredRoom, setHoveredRoom]           = useState(null); // floor-map tooltip
-  const [activeBlock, setActiveBlock]           = useState('A'); // block tab
-  const [ringsVisible, setRingsVisible]         = useState(false);
+  const [bookingSuccess, setBookingSuccess]   = useState(false);
+  const [selectedRoom, setSelectedRoom]       = useState(null);
+  const [searchTerm, setSearchTerm]           = useState('');
+  const [sidebarOpen, setSidebarOpen]         = useState(false);
+  const [activeBlock, setActiveBlock]         = useState('A');
+  const [ringsVisible, setRingsVisible]       = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
-  const sidebarRef  = useRef(null);
-  const blocksRef   = useRef(null);
+  const sidebarRef = useRef(null);
+  const blocksRef  = useRef(null);
 
   const [studentsList, setStudentsList] = useState([]);
   const [rooms, setRooms]               = useState([]);
@@ -83,6 +107,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
       setRooms(data);
     } catch (err) { console.error('Rooms fetch error:', err); }
   };
+
   const fetchStudents = async () => {
     try {
       const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/students');
@@ -90,6 +115,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
       setStudentsList(data);
     } catch (err) { console.error('Students fetch error:', err); }
   };
+
   useEffect(() => { fetchRooms(); fetchStudents(); }, []);
 
   // ── Sidebar outside-click ──
@@ -129,15 +155,27 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const handleNavClick = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
 
   // ── Booking ──
-  const handleOpenBooking = (room) => { setSelectedRoom(room); setBookingSuccess(false); setShowBookingModal(true); };
+  const handleOpenBooking = (room) => {
+    setSelectedRoom(room);
+    setBookingSuccess(false);
+    setUploadedFileName('');
+    setShowBookingModal(true);
+  };
+
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     fd.append('roomNumber', selectedRoom.number);
     try {
       const res = await fetch('https://hostel-backend-39y0.onrender.com/api/book', { method: 'POST', body: fd });
-      if (res.ok) { setBookingSuccess(true); fetchStudents(); fetchRooms(); }
-      else alert('Server error. Please try again.');
+      if (res.ok) {
+        setBookingSuccess(true);
+        fetchStudents();
+        fetchRooms();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Server error. Please try again.');
+      }
     } catch { alert('Connection failed.'); }
   };
 
@@ -145,38 +183,47 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const handleAccept = async (id) => {
     try {
       const res = await fetch(`https://hostel-backend-39y0.onrender.com/api/accept-student/${id}`, { method: 'POST' });
-      if (res.ok) { fetchStudents(); fetchRooms(); setShowReviewModal(false); setSelectedStudent(null); alert('Verified!'); }
+      if (res.ok) {
+        fetchStudents();
+        fetchRooms();
+        setShowReviewModal(false);
+        setSelectedStudent(null);
+        alert('Payment verified!');
+      }
     } catch (e) { console.error(e); }
   };
+
   const handleDecline = async (id) => {
     if (!window.confirm('Permanently delete this record?')) return;
     try {
       const res = await fetch(`https://hostel-backend-39y0.onrender.com/api/students/${id}`, { method: 'DELETE' });
-      if (res.ok) { setStudentsList(p => p.filter(s => s.id !== id)); setShowReviewModal(false); setSelectedStudent(null); }
+      if (res.ok) {
+        setStudentsList(p => p.filter(s => s.id !== id));
+        setShowReviewModal(false);
+        setSelectedStudent(null);
+      }
     } catch (e) { console.error(e); }
   };
 
   // ── Stats ──
-  const filteredStudents   = studentsList.filter(s =>
+  // FIX: search by s.name and s.room (matching updated API response fields)
+  const filteredStudents = studentsList.filter(s =>
     s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.room?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const totalStudents      = studentsList.length;
-  const occupiedBeds       = rooms.reduce((a, r) => a + (r.students || 0), 0);
-  const totalCapacity      = rooms.reduce((a, r) => a + (r.capacity || 0), 0);
-  const occupancyRate      = totalCapacity > 0 ? Math.round((occupiedBeds / totalCapacity) * 100) : 0;
-  const pendingCount       = studentsList.filter(s => s.status === 'Pending').length;
+  const totalStudents  = studentsList.length;
+  const occupiedBeds   = rooms.reduce((a, r) => a + (r.students || 0), 0);
+  const totalCapacity  = rooms.reduce((a, r) => a + (r.capacity || 0), 0);
+  const occupancyRate  = totalCapacity > 0 ? Math.round((occupiedBeds / totalCapacity) * 100) : 0;
+  const pendingCount   = studentsList.filter(s => s.status === 'Pending').length;
 
   // ── Block data derived from rooms ──
   const maleRooms   = rooms.filter(r => r.type === 'Male');
   const femaleRooms = rooms.filter(r => r.type === 'Female');
-
-  // Split rooms evenly across 3 blocks (A, B, C)
-  // Block A = Male rooms 1–6, Block B = Male 7–12 + Female 1–6, Block C = Female 7–18
-  const blockDefs = {
-    A: { label: 'Block A', gender: 'Male',   color: '#3B82F6', rooms: maleRooms.slice(0, 6)  },
+  const blockDefs   = {
+    A: { label: 'Block A', gender: 'Male',   color: '#3B82F6', rooms: maleRooms.slice(0, 6) },
     B: { label: 'Block B', gender: 'Mixed',  color: '#8B5CF6', rooms: [...maleRooms.slice(6, 12), ...femaleRooms.slice(0, 6)] },
-    C: { label: 'Block C', gender: 'Female', color: '#EC4899', rooms: femaleRooms.slice(6)   },
+    C: { label: 'Block C', gender: 'Female', color: '#EC4899', rooms: femaleRooms.slice(6) },
   };
 
   const blockStats = (key) => {
@@ -189,14 +236,14 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   };
 
   const amenities = [
-    { icon: <Wifi size={18}/>,     label: 'Free Wi-Fi',        desc: 'High-speed in all blocks' },
-    { icon: <Wind size={18}/>,     label: 'Ventilation',       desc: 'Cross-ventilated rooms' },
-    { icon: <Droplets size={18}/>, label: 'Running Water',     desc: '24 hr water supply' },
-    { icon: <Zap size={18}/>,      label: 'Power Supply',      desc: 'Backup generator' },
-    { icon: <Lock size={18}/>,     label: 'Security',          desc: 'Gated + night guards' },
-    { icon: <BookOpen size={18}/>, label: 'Study Room',        desc: 'Block B, 2nd floor' },
-    { icon: <Utensils size={18}/>, label: 'Dining Hall',       desc: 'Meals 3× daily' },
-    { icon: <Shield size={18}/>,   label: 'CCTV Coverage',     desc: 'All corridors' },
+    { icon: <Wifi size={18}/>,     label: 'Free Wi-Fi',    desc: 'High-speed in all blocks' },
+    { icon: <Wind size={18}/>,     label: 'Ventilation',   desc: 'Cross-ventilated rooms' },
+    { icon: <Droplets size={18}/>, label: 'Running Water', desc: '24 hr water supply' },
+    { icon: <Zap size={18}/>,      label: 'Power Supply',  desc: 'Backup generator' },
+    { icon: <Lock size={18}/>,     label: 'Security',      desc: 'Gated + night guards' },
+    { icon: <BookOpen size={18}/>, label: 'Study Room',    desc: 'Block B, 2nd floor' },
+    { icon: <Utensils size={18}/>, label: 'Dining Hall',   desc: 'Meals 3× daily' },
+    { icon: <Shield size={18}/>,   label: 'CCTV Coverage', desc: 'All corridors' },
   ];
 
   const rules = [
@@ -213,8 +260,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
 
-      {/* MOBILE BACKDROP */}
-      {sidebarOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden" />}
+      {sidebarOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"/>}
 
       {/* SIDEBAR */}
       <aside
@@ -243,10 +289,10 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {[
-            { icon: <LayoutDashboard size={20}/>, label: 'Overview',       tab: 'overview'  },
-            { icon: <Bed size={20}/>,             label: 'Room Allotment', tab: 'rooms'     },
-            { icon: <Users size={20}/>,           label: 'Students list',  tab: 'students'  },
-            { icon: <MapPin size={20}/>,          label: 'Blocks & Layout',tab: 'blocks'    },
+            { icon: <LayoutDashboard size={20}/>, label: 'Overview',        tab: 'overview' },
+            { icon: <Bed size={20}/>,             label: 'Room Allotment',  tab: 'rooms' },
+            { icon: <Users size={20}/>,           label: 'Students list',   tab: 'students' },
+            { icon: <MapPin size={20}/>,          label: 'Blocks & Layout', tab: 'blocks' },
           ].map(({ icon, label, tab }) => (
             <NavItem key={tab} icon={icon} label={label} active={activeTab === tab} onClick={() => handleNavClick(tab)}/>
           ))}
@@ -303,8 +349,8 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
           {activeTab === 'overview' && (
             <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-                <StatCard title="Total Students" value={totalStudents}  icon={<Users className="text-blue-600"/>}    trend="+Live"/>
-                <StatCard title="Occupied Beds"  value={occupiedBeds}   icon={<Bed className="text-green-600"/>}     trend={`${occupancyRate}% Full`}/>
+                <StatCard title="Total Students" value={totalStudents}  icon={<Users className="text-blue-600"/>}       trend="+Live"/>
+                <StatCard title="Occupied Beds"  value={occupiedBeds}   icon={<Bed className="text-green-600"/>}        trend={`${occupancyRate}% Full`}/>
                 <StatCard title="Pending Review" value={pendingCount}   icon={<CreditCard className="text-amber-600"/>} trend="Action Required"/>
                 <StatCard title="Health Score"   value="98%"            icon={<ShieldCheck className="text-emerald-600"/>} trend="Safe"/>
               </div>
@@ -338,6 +384,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
               </div>
+
               {/* Mobile cards */}
               <div className="md:hidden space-y-3">
                 {filteredStudents.map(s => (
@@ -366,6 +413,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   </div>
                 ))}
               </div>
+
               {/* Desktop table */}
               <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <table className="w-full text-left">
@@ -418,16 +466,13 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           )}
 
-          {/* ════════════════════════════════════════════
-              ── BLOCKS & LAYOUT (aesthetic section) ──
-              ════════════════════════════════════════════ */}
+          {/* ── BLOCKS & LAYOUT ── */}
           {activeTab === 'blocks' && (
             <div className="space-y-8 animate-in fade-in duration-500" ref={blocksRef}>
 
-              {/* ── Hero slideshow ── */}
+              {/* Hero slideshow */}
               <div className="relative w-full h-56 md:h-80 rounded-3xl overflow-hidden shadow-xl bg-slate-900">
                 <img src={hostelImages[currentSlide]} className="w-full h-full object-cover duration-700 brightness-75" alt="Block View"/>
-                {/* Gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"/>
                 <button onClick={prevSlide} className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition-all"><ChevronLeft size={20}/></button>
                 <button onClick={nextSlide} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition-all"><ChevronRight size={20}/></button>
@@ -437,7 +482,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   </span>
                   <p className="text-white text-lg font-bold mt-2 drop-shadow">University of Mines & Technology Hostel</p>
                 </div>
-                {/* Slide dots */}
                 <div className="absolute bottom-5 right-5 flex gap-2">
                   {[0,1,2].map(i => (
                     <button key={i} onClick={() => setCurrentSlide(i)}
@@ -446,7 +490,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* ── Block stat cards with ring charts ── */}
+              {/* Block stat cards */}
               <div>
                 <h2 className="text-lg font-bold text-slate-800 mb-4">Block Overview</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -491,34 +535,28 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* ── Interactive Floor Map ── */}
+              {/* Interactive Floor Map */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-6">
                 <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-slate-800">{blockDefs[activeBlock].label} — Floor Map</h2>
                     <p className="text-xs text-slate-400 mt-0.5">Click any room to book it</p>
                   </div>
-                  {/* Legend */}
                   <div className="flex items-center gap-4 text-[10px] font-bold uppercase">
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"/><span className="text-slate-500">Available</span></span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block"/><span className="text-slate-500">Partial</span></span>
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block"/><span className="text-slate-500">Full</span></span>
                   </div>
                 </div>
-
-                {/* Corridor label + room grid */}
                 <div className="relative">
-                  {/* Corridor strip */}
                   <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-8 bg-slate-100 border-y border-slate-200 flex items-center justify-center z-0">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Main Corridor</p>
                   </div>
-                  {/* Top row */}
                   <div className="relative z-10 grid grid-cols-6 gap-2 mb-10">
                     {blockDefs[activeBlock].rooms.slice(0, Math.ceil(blockDefs[activeBlock].rooms.length / 2)).map(room => (
                       <RoomCell key={room.id} room={room} onClick={handleOpenBooking}/>
                     ))}
                   </div>
-                  {/* Bottom row */}
                   <div className="relative z-10 grid grid-cols-6 gap-2 mt-10">
                     {blockDefs[activeBlock].rooms.slice(Math.ceil(blockDefs[activeBlock].rooms.length / 2)).map(room => (
                       <RoomCell key={room.id} room={room} onClick={handleOpenBooking}/>
@@ -527,7 +565,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* ── Amenities ── */}
+              {/* Amenities */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-6">
                 <h2 className="text-lg font-bold text-slate-800 mb-5">Hostel Amenities</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
@@ -543,7 +581,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* ── Rules & Regulations ── */}
+              {/* Rules */}
               <div className="bg-slate-900 rounded-3xl p-5 md:p-8 shadow-xl">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
@@ -563,11 +601,8 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   ))}
                 </div>
               </div>
-
             </div>
           )}
-          {/* ── END BLOCKS ── */}
-
         </main>
       </div>
 
@@ -581,22 +616,9 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
               <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors"><X size={18}/></button>
             </div>
             <div className="space-y-5">
-              <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
-                {selectedStudent?.receipt ? (
-                  <>
-                    <img src={selectedStudent.receipt} className="w-full h-full object-contain" alt="Receipt"
-                      onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}/>
-                    <div style={{display:'none'}} className="absolute inset-0 flex-col items-center justify-center bg-blue-50">
-                      <AlertCircle className="text-blue-300 mb-2" size={32}/>
-                      <p className="text-blue-400 text-sm font-medium italic">Image failed to load</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center">
-                    <AlertCircle className="text-blue-300 mb-2" size={32}/>
-                    <p className="text-blue-400 text-sm font-medium italic">No receipt uploaded</p>
-                  </div>
-                )}
+              {/* FIX: Uses ReceiptImage component — Cloudinary URL is a full https link, used directly */}
+              <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 overflow-hidden">
+                <ReceiptImage url={selectedStudent.receipt}/>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl text-center">
                 <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student</p>
@@ -624,8 +646,8 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
                 <h2 className="text-2xl font-bold text-slate-800">Booking Submitted!</h2>
                 <p className="text-slate-500 text-sm leading-relaxed">
-                  Your receipt has been sent to the warden for Room <strong>{selectedRoom?.number}</strong>.<br/>
-                  You will be notified once verified.
+                  Your receipt has been uploaded to cloud storage for Room <strong>{selectedRoom?.number}</strong>.<br/>
+                  You will be notified once the warden verifies it.
                 </p>
                 <button onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
                   className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">
@@ -638,11 +660,27 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <p className="text-slate-400 text-sm mb-6">Upload your payment receipt to complete booking.</p>
                 <form className="space-y-5" onSubmit={handleBookingSubmit}>
                   <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-7 bg-blue-50/40 text-center">
-                    <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required/>
+                    <input
+                      name="receipt"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      required
+                      onChange={e => setUploadedFileName(e.target.files[0]?.name || '')}
+                    />
                     <div className="flex flex-col items-center">
-                      <UploadCloud className="text-blue-500 mb-2" size={28}/>
-                      <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
-                      <p className="text-xs text-slate-400 mt-1">JPG, PNG supported</p>
+                      <UploadCloud className={`mb-2 ${uploadedFileName ? 'text-green-500' : 'text-blue-500'}`} size={28}/>
+                      {uploadedFileName ? (
+                        <>
+                          <p className="text-sm font-bold text-green-700">File selected ✓</p>
+                          <p className="text-xs text-slate-400 mt-1 truncate max-w-full px-2">{uploadedFileName}</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
+                          <p className="text-xs text-slate-400 mt-1">JPG, PNG, PDF supported</p>
+                        </>
+                      )}
                     </div>
                   </div>
                   <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Full Name" required/>
