@@ -417,21 +417,23 @@ const handleDecline = async (studentId) => {
               <div className="space-y-6">
                 {/* Receipt Preview Area */}
                 <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
-                  {selectedStudent?.receipt_url ? (
-                 <img 
-      /* We add /uploads/ here because your Flask 'book' route only saves the filename */
-      src={`https://hostel-backend-39y0.onrender.com/uploads/${selectedStudent.receipt}`} 
+  {selectedStudent?.receipt ? (
+    <img 
+      /* We manually add /uploads/ here to bridge the gap */
+      src={`https://hostel-backend-39y0.onrender.com/uploads/${selectedStudent.receipt.replace('/uploads/', '')}`} 
       className="w-full h-full object-contain" 
       alt="Student Payment Receipt" 
       onError={(e) => { 
-        console.error("Image failed to load at:", e.target.src);
-        e.target.src = "https://via.placeholder.com/400x200?text=File+Not+Found+On+Server"; 
+        console.error("Link attempted:", e.target.src);
+        e.target.src = "https://via.placeholder.com/400x200?text=File+Deleted+by+Render+Reset"; 
       }}
-/>
-                  ) : (
-                    <div className="text-center p-4">
-                      <p className="text-blue-400 text-sm font-medium italic">No receipt file uploaded by student</p>
-                    </div>
+    />
+  ) : (
+    <div className="text-center p-4">
+      <p className="text-blue-400 text-sm font-medium italic">No receipt file path in database</p>
+    </div>
+  )}
+</div>
                   )}
                 </div>
 
