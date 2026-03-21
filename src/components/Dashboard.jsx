@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Bell, LayoutDashboard, Bed, Users, 
-  CreditCard, Settings, LogOut, Search, Plus, 
+import {
+  Bell, LayoutDashboard, Bed, Users,
+  CreditCard, Settings, LogOut, Search, Plus,
   MapPin, Phone, ShieldCheck, Clock, X, Wrench, UserPlus,
   ChevronLeft, ChevronRight, UploadCloud, AlertCircle,
   CheckCircle, RefreshCw
@@ -15,10 +15,11 @@ import blockC from '../assets/hero3.jpg';
 const Dashboard = ({ userRole, userName, onLogout }) => {
   // --- 1. STATE MANAGEMENT ---
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showReviewModal, setShowReviewModal] = useState(false); 
+  const [showReviewModal, setShowReviewModal] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [activeTab, setActiveTab] = useState('overview'); 
+  const [activeTab, setActiveTab] = useState('overview');
   const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false); // FIX: tracks success state for student
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -26,7 +27,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const [studentsList, setStudentsList] = useState([]);
   const [rooms, setRooms] = useState([]);
 
-  // --- 2. API ENGINE (FLASK CONNECTIVITY) ---
+  // --- 2. API ENGINE ---
   const fetchRooms = async () => {
     try {
       const res = await fetch('https://hostel-backend-39y0.onrender.com/api/rooms');
@@ -68,11 +69,12 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   // --- 4. ACTION HANDLERS ---
   const handleOpenBooking = (room) => {
     setSelectedRoom(room);
+    setBookingSuccess(false); // reset success state each time modal opens
     setShowBookingModal(true);
   };
 
   const handleBookingSubmit = async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     const formData = new FormData(e.target);
     formData.append('roomNumber', selectedRoom.number);
 
@@ -83,13 +85,15 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
       });
 
       if (response.ok) {
-        setShowBookingModal(false);
-        fetchStudents(); 
-        fetchRooms();    
-        alert(`Success: Booking for ${selectedRoom.number} sent to Warden.`);
+        // FIX: show success screen to student instead of closing immediately
+        setBookingSuccess(true);
+        fetchStudents();
+        fetchRooms();
+      } else {
+        alert("Server error. Please try again.");
       }
     } catch (error) {
-      alert("Error: Connection to Render backend failed.");
+      alert("Error: Connection to server failed.");
     }
   };
 
@@ -130,7 +134,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   };
 
   // --- 5. DATA FILTERING & STATS ---
-  const filteredStudents = studentsList.filter(student => 
+  const filteredStudents = studentsList.filter(student =>
     student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     student.room?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -211,7 +215,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   <h3 className="text-lg font-bold text-slate-800 mb-4">System Status</h3>
                   <div className="space-y-4">
                     <ActivityItem label="Live Database" desc="Connected to Neon PostgreSQL" time="Status: Online" />
-                    <ActivityItem label="Render API" desc="Syncing with Flask Server" time="Status: Active" />
+                    <ActivityItem label="Cloudinary Storage" desc="Receipts stored permanently" time="Status: Active" />
                   </div>
                 </div>
               </div>
@@ -222,10 +226,10 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             <div className="space-y-6 animate-in fade-in duration-500">
               <div className="relative w-full md:w-96">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text" placeholder="Search students or rooms..." 
-                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500" 
-                  value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} 
+                <input
+                  type="text" placeholder="Search students or rooms..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -256,9 +260,9 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             {userRole === 'admin' && s.status === 'Pending' && (
-                              <button 
+                              <button
                                 onClick={() => { setSelectedStudent(s); setShowReviewModal(true); }}
-                                className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold shadow-lg transition-all animate-pulse"
+                                className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold shadow-lg transition-all animate-pulse"
                               >
                                 <Search size={14} /> Review Receipt
                               </button>
@@ -313,20 +317,30 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
               </div>
               <div className="space-y-6">
                 <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
+                  {/* FIX: selectedStudent.receipt is now a direct Cloudinary URL — use it straight */}
                   {selectedStudent?.receipt ? (
-                    <img 
-                      src={`https://hostel-backend-39y0.onrender.com/uploads/${selectedStudent.receipt.replace('/uploads/', '')}`} 
-                      className="w-full h-full object-contain" 
-                      alt="Student Receipt" 
-                      onError={(e) => { e.target.src = "https://via.placeholder.com/400x200?text=File+Reset+by+Render"; }}
+                    <img
+                      src={selectedStudent.receipt}
+                      className="w-full h-full object-contain"
+                      alt="Student Payment Receipt"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
                     />
-                  ) : (
-                    <p className="text-blue-400 text-sm font-medium italic">No file data available</p>
-                  )}
+                  ) : null}
+                  <div
+                    style={{ display: selectedStudent?.receipt ? 'none' : 'flex' }}
+                    className="flex-col items-center justify-center w-full h-full"
+                  >
+                    <AlertCircle className="text-blue-300 mb-2" size={32} />
+                    <p className="text-blue-400 text-sm font-medium italic">No receipt uploaded</p>
+                  </div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl text-center">
                   <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student</p>
                   <h4 className="text-lg font-bold text-slate-700">{selectedStudent.name}</h4>
+                  <p className="text-xs text-slate-400 mt-1">Room: {selectedStudent.room}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <button onClick={() => handleDecline(selectedStudent.id)} className="py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all">Decline</button>
@@ -340,18 +354,53 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         {/* MODAL: BOOKING FORM */}
         {showBookingModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowBookingModal(false)}></div>
+            <div
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
+            ></div>
             <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-300">
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Book Room {selectedRoom?.number}</h2>
-              <form className="space-y-6" onSubmit={handleBookingSubmit}>
-                <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-8 bg-blue-50/40 text-center">
-                  <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required />
-                  <div className="flex flex-col items-center"><UploadCloud className="text-blue-500 mb-2" /><p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p></div>
+
+              {bookingSuccess ? (
+                /* FIX: Student sees this confirmation screen after successful submit */
+                <div className="text-center space-y-5 py-4">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle className="text-green-600" size={32} />
+                  </div>
+                  <h2 className="text-2xl font-bold text-slate-800">Booking Submitted!</h2>
+                  <p className="text-slate-500 text-sm leading-relaxed">
+                    Your receipt has been sent to the warden for Room <strong>{selectedRoom?.number}</strong>.<br/>
+                    You will be notified once your payment is verified.
+                  </p>
+                  <button
+                    onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
+                    className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all uppercase text-xs tracking-widest"
+                  >
+                    Done
+                  </button>
                 </div>
-                <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none" placeholder="Full Name" required />
-                <input name="phone" type="tel" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none" placeholder="Phone Number" required />
-                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-5 rounded-3xl shadow-lg hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">Confirm Request</button>
-              </form>
+              ) : (
+                /* FORM STATE */
+                <>
+                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Book Room {selectedRoom?.number}</h2>
+                  <p className="text-slate-400 text-sm mb-6">Fill in your details and upload your payment receipt.</p>
+                  <form className="space-y-6" onSubmit={handleBookingSubmit}>
+                    <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-8 bg-blue-50/40 text-center">
+                      <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required />
+                      <div className="flex flex-col items-center">
+                        <UploadCloud className="text-blue-500 mb-2" size={28} />
+                        <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
+                        <p className="text-xs text-slate-400 mt-1">JPG, PNG supported</p>
+                      </div>
+                    </div>
+                    <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Full Name" required />
+                    <input name="phone" type="tel" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Phone Number" required />
+                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-5 rounded-3xl shadow-lg hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">
+                      Confirm Request
+                    </button>
+                  </form>
+                </>
+              )}
+
             </div>
           </div>
         )}
@@ -383,14 +432,21 @@ const StatCard = ({ title, value, icon, trend }) => (
 const InfoBox = ({ icon, label, value }) => (
   <div className="p-4 bg-slate-50 rounded-xl flex items-center gap-3 border border-slate-100">
     <div className="text-blue-500 p-2 bg-white rounded-lg shadow-sm">{icon}</div>
-    <div><p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{label}</p><p className="text-sm text-slate-800 font-bold">{value}</p></div>
+    <div>
+      <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{label}</p>
+      <p className="text-sm text-slate-800 font-bold">{value}</p>
+    </div>
   </div>
 );
 
 const ActivityItem = ({ label, desc, time }) => (
   <div className="flex gap-3 pb-3 border-b border-slate-50 last:border-0">
     <div className="h-2 w-2 mt-1.5 rounded-full bg-blue-500 shrink-0"></div>
-    <div><p className="text-xs font-bold text-slate-800">{label}</p><p className="text-[11px] text-slate-500 font-medium">{desc}</p><p className="text-[9px] text-slate-400 mt-1 uppercase font-bold">{time}</p></div>
+    <div>
+      <p className="text-xs font-bold text-slate-800">{label}</p>
+      <p className="text-[11px] text-slate-500 font-medium">{desc}</p>
+      <p className="text-[9px] text-slate-400 mt-1 uppercase font-bold">{time}</p>
+    </div>
   </div>
 );
 
@@ -399,13 +455,26 @@ const RoomCard = ({ room, onBook }) => {
   return (
     <div className="bg-white p-7 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-200 transition-all">
       <div className="flex justify-between items-start mb-6">
-        <div><h4 className="text-xl font-black text-slate-800">Room {room.number}</h4><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{room.type}</p></div>
-        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${room.status === 'Available' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{room.status}</span>
+        <div>
+          <h4 className="text-xl font-black text-slate-800">Room {room.number}</h4>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{room.type}</p>
+        </div>
+        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${room.status === 'Available' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+          {room.status}
+        </span>
       </div>
       <div className="w-full bg-slate-100 h-2 rounded-full mb-4">
-        <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${(room.students / room.capacity) * 100}%` }}></div>
+        <div
+          className="bg-blue-600 h-full rounded-full transition-all"
+          style={{ width: `${(room.students / room.capacity) * 100}%` }}
+        ></div>
       </div>
-      <button onClick={() => onBook(room)} disabled={isOccupied} className={`w-full py-3 rounded-2xl font-bold text-xs transition-all ${isOccupied ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'}`}>
+      <p className="text-xs text-slate-400 mb-4 font-medium">{room.students} / {room.capacity} beds occupied</p>
+      <button
+        onClick={() => onBook(room)}
+        disabled={isOccupied}
+        className={`w-full py-3 rounded-2xl font-bold text-xs transition-all ${isOccupied ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'}`}
+      >
         {isOccupied ? 'Room Full' : 'Book Now'}
       </button>
     </div>
