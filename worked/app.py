@@ -212,30 +212,26 @@ def upload_receipt():
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
 
-@app.route('/api/receipts/<int:id>', methods=['DELETE'])
-def delete_receipt(id):
+@app.route('/api/students/<int:id>', methods=['DELETE'])
+def delete_student_record(id):
     try:
-        # 1. We look in the 'Student' table because that's where "Fiifi" is stored
-        student = Student.query.get(id)
+        # We target the 'Student' table directly
+        target_student = Student.query.get(id)
         
-        if not student:
-            return jsonify({"success": False, "message": "Student record not found"}), 404
+        if not target_student:
+            return jsonify({"success": False, "message": "Student not found in database"}), 404
         
-        # 2. Delete the student record
-        db.session.delete(student)
-        
-        # 3. Save the changes to Neon/Postgres
+        db.session.delete(target_student)
         db.session.commit()
         
         return jsonify({
             "success": True, 
-            "message": f"Successfully declined and removed student: {student.full_name}"
-        })
+            "message": f"Record for {target_student.full_name} deleted."
+        }), 200
 
     except Exception as e:
         db.session.rollback()
-        print(f"Delete Error: {str(e)}")
-        return jsonify({"success": False, "message": "Server error while deleting"}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
