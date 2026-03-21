@@ -149,10 +149,10 @@ def get_students():
     Returns all students with fields that match the React frontend exactly:
     name, room, course, status, receipt
     """
-    all_students = Student.query.all()
+    all_students = Student.query.order_by(Student.id.desc()).all()
     result = []
     for s in all_students:
-        room = Room.query.get(s.room_id)
+        room = db.session.get(Room, s.room_id)
         result.append({
             "id": s.id,
             "name": s.full_name,
@@ -171,18 +171,29 @@ def book_room():
         phone    = request.form.get('phone')
         file     = request.files.get('receipt')
 
+        if not name or not room_num:
+            return jsonify({"error": "Student name and room number are required"}), 400
+
+        room = Room.query.filter_by(room_number=room_num).first()
+        if not room:
+            return jsonify({"error": f"Room {room_num} not found"}), 404
+
+        # Check room capacity before booking
+        current_count = Student.query.filter_by(room_id=room.id, payment_status='Paid').count()
+        if current_count >= room.max_capacity:
+            return jsonify({"error": "Room is already full"}), 400
+
         receipt_url = None
         if file and file.filename:
             receipt_url = upload_to_cloudinary(file)
 
-        room = Room.query.filter_by(room_number=room_num).first()
         db.session.add(Student(
             full_name=name,
             phone_number=phone,
             course_name=request.form.get('course', 'University of Mines and Tech'),
             payment_status='Pending',
             receipt_url=receipt_url,
-            room_id=room.id if room else None
+            room_id=room.id
         ))
         db.session.commit()
         return jsonify({"message": "Booking submitted successfully"}), 201
@@ -216,7 +227,7 @@ def upload_receipt():
 
 @app.route('/api/accept-student/<int:student_id>', methods=['POST'])
 def accept_student(student_id):
-    student = Student.query.get(student_id)
+    student = db.session.get(Student, student_id)
     if student:
         student.payment_status = 'Paid'
         db.session.commit()
@@ -226,12 +237,13 @@ def accept_student(student_id):
 @app.route('/api/students/<int:id>', methods=['DELETE'])
 def delete_student_record(id):
     try:
-        target = Student.query.get(id)
+        target = db.session.get(Student, id)
         if not target:
             return jsonify({"success": False, "message": "Student not found"}), 404
+        name = target.full_name   # capture before deletion
         db.session.delete(target)
         db.session.commit()
-        return jsonify({"success": True, "message": f"Record for {target.full_name} deleted."}), 200
+        return jsonify({"success": True, "message": f"Record for {name} deleted."}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
