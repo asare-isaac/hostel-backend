@@ -419,14 +419,14 @@ const handleDecline = async (studentId) => {
                 <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
                   {selectedStudent?.receipt_url ? (
                  <img 
-  // We manually add the Render domain to ensure it doesn't look on Vercel
-  src={`https://hostel-backend-39y0.onrender.com${selectedStudent.receipt_url}`} 
-  className="w-full h-full object-contain" 
-  alt="Student Receipt" 
-  onError={(e) => { 
-    console.error("Image failed to load at:", e.target.src);
-    e.target.src = "https://via.placeholder.com/400x200?text=File+Not+Found+On+Render"; 
-  }}
+      /* We add /uploads/ here because your Flask 'book' route only saves the filename */
+      src={`https://hostel-backend-39y0.onrender.com/uploads/${selectedStudent.receipt}`} 
+      className="w-full h-full object-contain" 
+      alt="Student Payment Receipt" 
+      onError={(e) => { 
+        console.error("Image failed to load at:", e.target.src);
+        e.target.src = "https://via.placeholder.com/400x200?text=File+Not+Found+On+Server"; 
+      }}
 />
                   ) : (
                     <div className="text-center p-4">
