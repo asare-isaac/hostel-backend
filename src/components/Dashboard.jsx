@@ -395,90 +395,64 @@ const handleDecline = async (studentId) => {
           )}
         </main>
 
-        {/* MODAL: ADMIN REVIEW */}
-{showReviewModal && selectedStudent && (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-    {/* Overlay */}
-    <div 
-      className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
-      onClick={() => setShowReviewModal(false)}
-    ></div>
-
-    {/* Modal Content */}
-    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-200">
-      
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
-        <button 
-          onClick={() => setShowReviewModal(false)} 
-          className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors"
-        >
-          {/* Using a standard 'X' if you don't have the icon library imported */}
-          <span className="px-2">✕</span>
-        </button>
-      </div>
-      
-      <div className="space-y-6">
-        {/* Receipt Preview Area */}
-        <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
-          
-          {selectedStudent?.receipt_url ? (
-            <img 
-              src={`https://hostel-backend-39y0.onrender.com${selectedStudent.receipt_url.startsWith('/') ? '' : '/'}${selectedStudent.receipt_url}`} 
-              className="w-full h-full object-contain" 
-              alt="Student Payment Receipt" 
-              onError={(e) => { 
-                console.error("Image failed to load at:", e.target.src);
-                e.target.src = "https://via.placeholder.com/400x200?text=Receipt+Not+Found+on+Server"; 
-              }}
-            />
-          ) : (
-            <div className="text-center p-4">
-              <p className="text-blue-400 text-sm font-medium italic">No receipt file uploaded by student</p>
-            </div>
-          )}
-        </div>
-
-        {/* Student Info Section */}
-        <div className="bg-slate-50 p-4 rounded-2xl">
-          <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student Name</p>
-          <h4 className="text-lg font-bold text-slate-700">{selectedStudent?.full_name || "Name not found"}</h4>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4 pt-2">
-          <button 
-            onClick={() => handleDecline(selectedStudent.id)}
-            className="py-3 px-4 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all active:scale-95"
-          >
-            Decline
-          </button>
-          <button 
-            onClick={() => {
-                // Add your handleAccept function here
-                alert("Approving student...");
-                setShowReviewModal(false);
-            }}
-            className="py-3 px-4 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 shadow-lg shadow-green-200 transition-all active:scale-95"
-          >
-            Accept Student
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase">Student Name</p>
-                  <p className="text-sm font-bold">{selectedStudent.name}</p>
+       {/* MODAL: ADMIN REVIEW */}
+        {showReviewModal && selectedStudent && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div 
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+              onClick={() => setShowReviewModal(false)}
+            ></div>
+            
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-200">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
+                <button 
+                  onClick={() => setShowReviewModal(false)} 
+                  className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors"
+                >
+                  <span className="px-2">✕</span>
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Receipt Preview Area */}
+                <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
+                  {selectedStudent?.receipt_url ? (
+                    <img 
+                      src={`https://hostel-backend-39y0.onrender.com${selectedStudent.receipt_url.startsWith('/') ? '' : '/'}${selectedStudent.receipt_url}`} 
+                      className="w-full h-full object-contain" 
+                      alt="Student Payment Receipt" 
+                      onError={(e) => { 
+                        console.error("Image failed to load at:", e.target.src);
+                        e.target.src = "https://via.placeholder.com/400x200?text=Receipt+Not+Found+on+Server"; 
+                      }}
+                    />
+                  ) : (
+                    <div className="text-center p-4">
+                      <p className="text-blue-400 text-sm font-medium italic">No receipt file uploaded by student</p>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button onClick={() => handleDecline(selectedStudent.id)} className="flex-1 py-4 text-red-600 font-bold text-sm border border-red-100 rounded-2xl hover:bg-red-50">Decline</button>
+                {/* Student Info Section */}
+                <div className="bg-slate-50 p-4 rounded-2xl text-center">
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student Name</p>
+                  <h4 className="text-lg font-bold text-slate-700">
+                    {selectedStudent?.full_name || selectedStudent?.name || "Name not found"}
+                  </h4>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <button 
+                    onClick={() => handleDecline(selectedStudent.id)}
+                    className="py-3 px-4 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all active:scale-95"
+                  >
+                    Decline
+                  </button>
                   <button 
                     onClick={() => handleAccept(selectedStudent.id)}
-                    className="flex-1 py-4 bg-green-600 text-white font-bold text-sm rounded-2xl hover:bg-green-700 shadow-xl"
+                    className="py-3 px-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-200 transition-all active:scale-95"
                   >
                     Accept Student
                   </button>
@@ -491,9 +465,18 @@ const handleDecline = async (studentId) => {
         {/* MODAL: BOOKING FORM */}
         {showBookingModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowBookingModal(false)}></div>
+            <div 
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+              onClick={() => setShowBookingModal(false)}
+            ></div>
+            
             <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-300">
-              <button onClick={() => setShowBookingModal(false)} className="absolute right-6 top-6 text-slate-400 p-2 bg-slate-50 rounded-full hover:text-red-500"><X size={20} /></button>
+              <button 
+                onClick={() => setShowBookingModal(false)} 
+                className="absolute right-6 top-6 text-slate-400 p-2 bg-slate-50 rounded-full hover:text-red-500 transition-colors"
+              >
+                <span className="px-2">✕</span>
+              </button>
               
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-slate-800">Assign Room {selectedRoom?.number}</h2>
@@ -502,23 +485,45 @@ const handleDecline = async (studentId) => {
 
               <form className="space-y-6" onSubmit={handleBookingSubmit}>
                 <div className="space-y-3">
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Payment Receipt (Image)</label>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">
+                    Payment Receipt (Image)
+                  </label>
                   <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-8 bg-blue-50/40 hover:bg-blue-50 transition-all text-center group">
-                    {/* name="receipt" must match the name in Flask's request.files.get('receipt') */}
-                    <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required />
+                    <input 
+                      name="receipt" 
+                      type="file" 
+                      accept="image/*" 
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                      required 
+                    />
                     <div className="flex flex-col items-center pointer-events-none">
-                      <UploadCloud size={32} className="text-blue-600 mb-2" />
+                      <div className="text-blue-600 mb-2">☁️</div>
                       <p className="text-sm font-bold text-slate-700">Tap to upload receipt</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none" placeholder="Full Student Name" required />
-                  <input name="phone" type="tel" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none" placeholder="Phone Number" required />
+                  <input 
+                    name="studentName" 
+                    type="text" 
+                    className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+                    placeholder="Full Student Name" 
+                    required 
+                  />
+                  <input 
+                    name="phone" 
+                    type="tel" 
+                    className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+                    placeholder="Phone Number" 
+                    required 
+                  />
                 </div>
 
-                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-5 rounded-3xl shadow-2xl transition-all uppercase tracking-widest text-xs">
+                <button 
+                  type="submit" 
+                  className="w-full bg-blue-600 text-white font-bold py-5 rounded-3xl shadow-2xl transition-all hover:bg-blue-700 active:scale-95 uppercase tracking-widest text-xs"
+                >
                   Confirm Allotment Request
                 </button>
               </form>
