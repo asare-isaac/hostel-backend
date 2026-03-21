@@ -409,11 +409,15 @@ const handleDecline = async (studentId) => {
                 <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden group">
                   {/* REAL IMAGE FROM FLASK UPLOADS */}
                   <img 
-                    src={` https://hostel-backend-39y0.onrender.com/uploads/${selectedStudent.receipt}`} 
-                    className="w-full h-full object-cover" 
-                    alt="Receipt" 
-                    onError={(e) => { e.target.src = "https://via.placeholder.com/300x150?text=Receipt+Not+Found"; }}
-                  />
+  src={`https://hostel-backend-39y0.onrender.com${selectedStudent.receipt_url.startsWith('/') ? '' : '/'}${selectedStudent.receipt_url}`} 
+  className="w-full h-full object-contain" 
+  alt="Student Payment Receipt" 
+  onError={(e) => { 
+    console.error("Image failed to load at:", e.target.src);
+    // This shows a clear error image if the file was deleted by Render's restart
+    e.target.src = "https://via.placeholder.com/400x200?text=Receipt+File+Not+Found+on+Server"; 
+  }}
+/>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center">
