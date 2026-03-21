@@ -396,29 +396,78 @@ const handleDecline = async (studentId) => {
         </main>
 
         {/* MODAL: ADMIN REVIEW */}
-        {showReviewModal && selectedStudent && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowReviewModal(false)}></div>
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-200">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
-                <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full"><X size={20}/></button>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden group">
-                  {/* REAL IMAGE FROM FLASK UPLOADS */}
-                  <img 
-  src={`https://hostel-backend-39y0.onrender.com${selectedStudent.receipt_url.startsWith('/') ? '' : '/'}${selectedStudent.receipt_url}`} 
-  className="w-full h-full object-contain" 
-  alt="Student Payment Receipt" 
-  onError={(e) => { 
-    console.error("Image failed to load at:", e.target.src);
-    // This shows a clear error image if the file was deleted by Render's restart
-    e.target.src = "https://via.placeholder.com/400x200?text=Receipt+File+Not+Found+on+Server"; 
-  }}
-/>
-                </div>
+{showReviewModal && selectedStudent && (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    {/* Overlay */}
+    <div 
+      className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" 
+      onClick={() => setShowReviewModal(false)}
+    ></div>
+
+    {/* Modal Content */}
+    <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in duration-200">
+      
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
+        <button 
+          onClick={() => setShowReviewModal(false)} 
+          className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors"
+        >
+          {/* Using a standard 'X' if you don't have the icon library imported */}
+          <span className="px-2">✕</span>
+        </button>
+      </div>
+      
+      <div className="space-y-6">
+        {/* Receipt Preview Area */}
+        <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
+          
+          {selectedStudent?.receipt_url ? (
+            <img 
+              src={`https://hostel-backend-39y0.onrender.com${selectedStudent.receipt_url.startsWith('/') ? '' : '/'}${selectedStudent.receipt_url}`} 
+              className="w-full h-full object-contain" 
+              alt="Student Payment Receipt" 
+              onError={(e) => { 
+                console.error("Image failed to load at:", e.target.src);
+                e.target.src = "https://via.placeholder.com/400x200?text=Receipt+Not+Found+on+Server"; 
+              }}
+            />
+          ) : (
+            <div className="text-center p-4">
+              <p className="text-blue-400 text-sm font-medium italic">No receipt file uploaded by student</p>
+            </div>
+          )}
+        </div>
+
+        {/* Student Info Section */}
+        <div className="bg-slate-50 p-4 rounded-2xl">
+          <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student Name</p>
+          <h4 className="text-lg font-bold text-slate-700">{selectedStudent?.full_name || "Name not found"}</h4>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-4 pt-2">
+          <button 
+            onClick={() => handleDecline(selectedStudent.id)}
+            className="py-3 px-4 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all active:scale-95"
+          >
+            Decline
+          </button>
+          <button 
+            onClick={() => {
+                // Add your handleAccept function here
+                alert("Approving student...");
+                setShowReviewModal(false);
+            }}
+            className="py-3 px-4 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 shadow-lg shadow-green-200 transition-all active:scale-95"
+          >
+            Accept Student
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center">
                   <p className="text-[9px] font-bold text-slate-400 uppercase">Student Name</p>
