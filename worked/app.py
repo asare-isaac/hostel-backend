@@ -160,14 +160,24 @@ def book_room():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/students', methods=['GET'])
-def get_students():
-    all_students = Student.query.all()
-    return jsonify([{
-        "id": s.id, "name": s.full_name, "phone": s.phone_number,
-        "room": s.room_assigned.room_number if s.room_assigned else "N/A",
-        "status": s.payment_status, "course": s.course_name, "receipt": s.receipt_url
-    } for s in all_students])
+<div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 flex flex-col items-center justify-center relative overflow-hidden">
+  {/* FIX: Use .receipt because that is what your Flask JSON returns */}
+  {selectedStudent?.receipt ? (
+    <img 
+      src={`https://hostel-backend-39y0.onrender.com${selectedStudent.receipt.startsWith('/') ? '' : '/'}${selectedStudent.receipt}`} 
+      className="w-full h-full object-contain" 
+      alt="Student Payment Receipt" 
+      onError={(e) => { 
+        console.error("Image failed to load at:", e.target.src);
+        e.target.src = "https://via.placeholder.com/400x200?text=File+Not+Found+On+Server"; 
+      }}
+    />
+  ) : (
+    <div className="text-center p-4">
+      <p className="text-blue-400 text-sm font-medium italic">No receipt file uploaded by student</p>
+    </div>
+  )}
+</div>
 
 @app.route('/api/accept-student/<int:student_id>', methods=['POST'])
 def accept_student(student_id):
