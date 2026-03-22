@@ -5,8 +5,8 @@ import {
   MapPin, Phone, ShieldCheck,
   ChevronLeft, ChevronRight, UploadCloud, AlertCircle,
   CheckCircle, RefreshCw, X, Wifi, Wind, Droplets,
-  Zap, Lock, BookOpen, Utensils, Shield, UserCheck,
-  DoorOpen, Hash, GraduationCap, PhoneCall
+  Zap, Lock, BookOpen, Utensils, Shield,
+  DoorOpen, GraduationCap, PhoneCall, Trash2, Calendar
 } from 'lucide-react';
 
 import blockA from '../assets/hero2.jpg';
@@ -49,38 +49,37 @@ const RoomCell = ({ room, onClick }) => {
 const OccupantAvatar = ({ name }) => {
   const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
   const colors   = ['#3B82F6','#8B5CF6','#EC4899','#10B981','#F59E0B','#EF4444','#06B6D4'];
-  const color    = colors[name?.charCodeAt(0) % colors.length] || '#3B82F6';
+  const color    = colors[(name?.charCodeAt(0) || 0) % colors.length];
   return (
     <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0"
-      style={{ background: color }}>
-      {initials}
-    </div>
+      style={{ background: color }}>{initials}</div>
   );
 };
+
+// ─── ACADEMIC YEAR OPTIONS ────────────────────────────────────────────────────
+const currentYear = new Date().getFullYear();
+const academicYears = Array.from({ length: 8 }, (_, i) => currentYear - i);
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 const Dashboard = ({ userRole, userName, onLogout }) => {
 
-  // ── STATE ──
-  const [selectedStudent, setSelectedStudent]   = useState(null);
-  const [showReviewModal, setShowReviewModal]   = useState(false);
-  const [currentSlide, setCurrentSlide]         = useState(0);
-  const [activeTab, setActiveTab]               = useState('overview');
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [bookingSuccess, setBookingSuccess]     = useState(false);
-  const [selectedRoom, setSelectedRoom]         = useState(null);
-  const [searchTerm, setSearchTerm]             = useState('');
-  const [sidebarOpen, setSidebarOpen]           = useState(false);
-  const [activeBlock, setActiveBlock]           = useState('A');
-  const [ringsVisible, setRingsVisible]         = useState(false);
-  const [receiptLoading, setReceiptLoading]     = useState(false);
-  const [receiptError, setReceiptError]         = useState(false);
-
-  // Room Details modal state
-  const [showRoomModal, setShowRoomModal]       = useState(false);
-  const [roomOccupants, setRoomOccupants]       = useState([]);
+  const [selectedStudent, setSelectedStudent]           = useState(null);
+  const [showReviewModal, setShowReviewModal]           = useState(false);
+  const [currentSlide, setCurrentSlide]                 = useState(0);
+  const [activeTab, setActiveTab]                       = useState('overview');
+  const [showBookingModal, setShowBookingModal]         = useState(false);
+  const [bookingSuccess, setBookingSuccess]             = useState(false);
+  const [selectedRoom, setSelectedRoom]                 = useState(null);
+  const [searchTerm, setSearchTerm]                     = useState('');
+  const [sidebarOpen, setSidebarOpen]                   = useState(false);
+  const [activeBlock, setActiveBlock]                   = useState('A');
+  const [ringsVisible, setRingsVisible]                 = useState(false);
+  const [receiptLoading, setReceiptLoading]             = useState(false);
+  const [receiptError, setReceiptError]                 = useState(false);
+  const [showRoomModal, setShowRoomModal]               = useState(false);
+  const [roomOccupants, setRoomOccupants]               = useState([]);
   const [roomOccupantsLoading, setRoomOccupantsLoading] = useState(false);
-  const [previewRoom, setPreviewRoom]           = useState(null);
+  const [previewRoom, setPreviewRoom]                   = useState(null);
 
   const [studentsList, setStudentsList] = useState([]);
   const [rooms, setRooms]               = useState([]);
@@ -93,7 +92,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
       const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/rooms');
       const data = await res.json();
       setRooms(data);
-    } catch (err) { console.error('Rooms fetch error:', err); }
+    } catch (err) { console.error('Rooms:', err); }
   };
 
   const fetchStudents = async () => {
@@ -101,27 +100,21 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
       const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/students');
       const data = await res.json();
       setStudentsList(data);
-    } catch (err) { console.error('Students fetch error:', err); }
+    } catch (err) { console.error('Students:', err); }
   };
 
-  // Fetch occupants for a specific room
   const fetchRoomOccupants = async (roomId) => {
     setRoomOccupantsLoading(true);
     try {
       const res  = await fetch(`https://hostel-backend-39y0.onrender.com/api/rooms/${roomId}/occupants`);
       const data = await res.json();
       setRoomOccupants(data);
-    } catch (err) {
-      console.error('Occupants fetch error:', err);
-      setRoomOccupants([]);
-    } finally {
-      setRoomOccupantsLoading(false);
-    }
+    } catch (err) { setRoomOccupants([]); }
+    finally { setRoomOccupantsLoading(false); }
   };
 
   useEffect(() => { fetchRooms(); fetchStudents(); }, []);
 
-  // Sidebar outside-click
   useEffect(() => {
     const h = (e) => {
       if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target))
@@ -129,10 +122,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     };
     document.addEventListener('mousedown', h);
     document.addEventListener('touchstart', h);
-    return () => {
-      document.removeEventListener('mousedown', h);
-      document.removeEventListener('touchstart', h);
-    };
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('touchstart', h); };
   }, [sidebarOpen]);
 
   useEffect(() => {
@@ -148,7 +138,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     }
   }, [activeTab]);
 
-  // Slideshow
   const hostelImages = [blockA, blockB, blockC];
   const nextSlide    = () => setCurrentSlide(p => (p === 2 ? 0 : p + 1));
   const prevSlide    = () => setCurrentSlide(p => (p === 0 ? 2 : p - 1));
@@ -159,14 +148,12 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const handleNavClick = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
 
-  // ── OPEN ROOM DETAILS MODAL (replaces direct booking open) ──
   const handleRoomCardClick = async (room) => {
     setPreviewRoom(room);
     setShowRoomModal(true);
     await fetchRoomOccupants(room.id);
   };
 
-  // Proceed from Room Details → Booking Form
   const handleProceedToBook = () => {
     setShowRoomModal(false);
     setSelectedRoom(previewRoom);
@@ -174,24 +161,17 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     setShowBookingModal(true);
   };
 
-  // ── BOOKING SUBMIT ──
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     fd.append('roomNumber', selectedRoom.number);
     try {
       const res = await fetch('https://hostel-backend-39y0.onrender.com/api/book', { method: 'POST', body: fd });
-      if (res.ok) {
-        setBookingSuccess(true);
-        fetchStudents();
-        fetchRooms();
-      } else {
-        alert('Server error. Please try again.');
-      }
-    } catch { alert('Connection failed. Please check your internet.'); }
+      if (res.ok) { setBookingSuccess(true); fetchStudents(); fetchRooms(); }
+      else alert('Server error. Please try again.');
+    } catch { alert('Connection failed.'); }
   };
 
-  // ── ADMIN ACTIONS ──
   const handleOpenReview = (student) => {
     setSelectedStudent(student);
     setReceiptLoading(true);
@@ -206,18 +186,23 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     } catch (e) { console.error(e); }
   };
 
-  const handleDecline = async (id) => {
-    if (!window.confirm('Permanently delete this record?')) return;
+  const handleDelete = async (id) => {
+    if (!window.confirm('Permanently delete this student record from the database?')) return;
     try {
       const res = await fetch(`https://hostel-backend-39y0.onrender.com/api/students/${id}`, { method: 'DELETE' });
-      if (res.ok) { setStudentsList(p => p.filter(s => s.id !== id)); setShowReviewModal(false); setSelectedStudent(null); }
-    } catch (e) { console.error(e); }
+      if (res.ok) {
+        setStudentsList(p => p.filter(s => s.id !== id));
+        setShowReviewModal(false);
+        setSelectedStudent(null);
+      } else { alert('Failed to delete. Please try again.'); }
+    } catch { alert('Connection error.'); }
   };
 
   // ── STATS ──
   const filteredStudents = studentsList.filter(s =>
     s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.room?.toLowerCase().includes(searchTerm.toLowerCase())
+    s.room?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.program?.toLowerCase().includes(searchTerm.toLowerCase())
   );
   const totalStudents = studentsList.length;
   const occupiedBeds  = rooms.reduce((a, r) => a + (r.students || 0), 0);
@@ -225,20 +210,23 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const occupancyRate = totalCapacity > 0 ? Math.round((occupiedBeds / totalCapacity) * 100) : 0;
   const pendingCount  = studentsList.filter(s => s.status === 'Pending').length;
 
-  // ── BLOCK DATA ──
-  const maleRooms   = rooms.filter(r => r.type === 'Male');
-  const femaleRooms = rooms.filter(r => r.type === 'Female');
-  const blockDefs   = {
-    A: { label: 'Block A', gender: 'Male',   color: '#3B82F6', rooms: maleRooms.slice(0, 6) },
-    B: { label: 'Block B', gender: 'Mixed',  color: '#8B5CF6', rooms: [...maleRooms.slice(6, 12), ...femaleRooms.slice(0, 6)] },
-    C: { label: 'Block C', gender: 'Female', color: '#EC4899', rooms: femaleRooms.slice(6) },
+  // ── BLOCK DATA — derived from actual rooms API ──
+  const blockARooms = rooms.filter(r => r.block === 'A');
+  const blockBRooms = rooms.filter(r => r.block === 'B');
+  const blockCRooms = rooms.filter(r => r.block === 'C');
+
+  const blockDefs = {
+    A: { label: 'Block A', desc: '4-bed rooms',  color: '#3B82F6', capacity: 4, rooms: blockARooms },
+    B: { label: 'Block B', desc: '2-bed rooms',  color: '#8B5CF6', capacity: 2, rooms: blockBRooms },
+    C: { label: 'Block C', desc: '3-bed rooms',  color: '#EC4899', capacity: 3, rooms: blockCRooms },
   };
+
   const blockStats = (key) => {
     const br  = blockDefs[key].rooms;
     const cap = br.reduce((a, r) => a + (r.capacity || 0), 0);
     const occ = br.reduce((a, r) => a + (r.students || 0), 0);
     const pct = cap > 0 ? Math.round((occ / cap) * 100) : 0;
-    return { cap, occ, pct, avail: br.filter(r => r.status !== 'Occupied').length };
+    return { cap, occ, pct, avail: br.filter(r => r.status !== 'Occupied').length, total: br.length };
   };
 
   const amenities = [
@@ -263,20 +251,11 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const profileImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'Guest')}&background=0D8ABC&color=fff`;
 
-  // Bed slots visual
   const BedSlots = ({ occupied, capacity }) => (
     <div className="flex gap-1.5 flex-wrap">
       {Array.from({ length: capacity }).map((_, i) => (
-        <div key={i}
-          className={`w-8 h-10 rounded-lg border-2 flex items-center justify-center transition-all ${
-            i < occupied
-              ? 'bg-blue-100 border-blue-300'
-              : 'bg-slate-50 border-dashed border-slate-300'
-          }`}>
-          {i < occupied
-            ? <Bed size={14} className="text-blue-500"/>
-            : <Bed size={14} className="text-slate-300"/>
-          }
+        <div key={i} className={`w-8 h-10 rounded-lg border-2 flex items-center justify-center transition-all ${i < occupied ? 'bg-blue-100 border-blue-300' : 'bg-slate-50 border-dashed border-slate-300'}`}>
+          <Bed size={14} className={i < occupied ? 'text-blue-500' : 'text-slate-300'}/>
         </div>
       ))}
     </div>
@@ -287,7 +266,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
       {sidebarOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"/>}
 
-      {/* SIDEBAR */}
+      {/* ── SIDEBAR ── */}
       <aside ref={sidebarRef}
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col
           transition-transform duration-300 ease-in-out
@@ -297,9 +276,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
           <span className="text-2xl font-bold tracking-tight text-blue-400">
             HostelHub <span className="text-[10px] bg-blue-500/20 px-2 py-0.5 rounded text-blue-200">v2.0</span>
           </span>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
-            <X size={20}/>
-          </button>
+          <button onClick={() => setSidebarOpen(false)} className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"><X size={20}/></button>
         </div>
         <div className="md:hidden px-4 py-4 border-b border-slate-800">
           <div className="flex items-center gap-3 bg-slate-800 rounded-xl px-4 py-3">
@@ -312,10 +289,10 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {[
-            { icon: <LayoutDashboard size={20}/>, label: 'Overview',        tab: 'overview'  },
-            { icon: <Bed size={20}/>,             label: 'Room Allotment',  tab: 'rooms'     },
-            { icon: <Users size={20}/>,           label: 'Students list',   tab: 'students'  },
-            { icon: <MapPin size={20}/>,          label: 'Blocks & Layout', tab: 'blocks'    },
+            { icon: <LayoutDashboard size={20}/>, label: 'Overview',        tab: 'overview' },
+            { icon: <Bed size={20}/>,             label: 'Room Allotment',  tab: 'rooms'    },
+            { icon: <Users size={20}/>,           label: 'Students list',   tab: 'students' },
+            { icon: <MapPin size={20}/>,          label: 'Blocks & Layout', tab: 'blocks'   },
           ].map(({ icon, label, tab }) => (
             <NavItem key={tab} icon={icon} label={label} active={activeTab === tab} onClick={() => handleNavClick(tab)}/>
           ))}
@@ -327,7 +304,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
       </aside>
 
-      {/* MAIN */}
+      {/* ── MAIN ── */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* HEADER */}
@@ -366,7 +343,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         {/* CONTENT */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
 
-          {/* OVERVIEW */}
+          {/* ── OVERVIEW ── */}
           {activeTab === 'overview' && (
             <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
@@ -396,31 +373,45 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           )}
 
-          {/* STUDENTS */}
+          {/* ── STUDENTS ── */}
           {activeTab === 'students' && (
             <div className="space-y-5 animate-in fade-in duration-500">
               <div className="relative w-full md:w-96">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                <input type="text" placeholder="Search students or rooms..."
+                <input type="text" placeholder="Search by name, room or program..."
                   className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
               </div>
+
+              {/* Mobile cards */}
               <div className="md:hidden space-y-3">
                 {filteredStudents.map(s => (
                   <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <p className="font-bold text-slate-800 text-sm">{s.name}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{s.course}</p>
+                        {/* Program tag */}
+                        {s.program && (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full mt-1 font-bold">
+                            <GraduationCap size={9}/> {s.program}
+                          </span>
+                        )}
                       </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{s.status}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0 ml-2 ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                        {s.status}
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-500 mb-3">Room: <span className="font-bold text-slate-700">{s.room}</span></p>
-                    <div className="flex justify-end">
+                    <div className="flex items-center gap-3 mb-3 text-[10px] text-slate-400 font-bold flex-wrap">
+                      <span>Room: <span className="text-slate-600">{s.room}</span></span>
+                      {s.academic_year && (
+                        <span className="flex items-center gap-1"><Calendar size={9}/> {s.academic_year}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
                       {userRole === 'admin' && s.status === 'Pending' && (
                         <button onClick={() => handleOpenReview(s)}
-                          className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold shadow transition-all animate-pulse">
-                          <Search size={13}/> Review Receipt
+                          className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-[10px] font-bold shadow transition-all animate-pulse">
+                          <Search size={13}/> Review
                         </button>
                       )}
                       {s.status === 'Paid' && (
@@ -428,15 +419,26 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                           <ShieldCheck size={13}/> Verified
                         </div>
                       )}
+                      {userRole === 'admin' && (
+                        <button onClick={() => handleDelete(s.id)}
+                          className="p-2 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all border border-red-100"
+                          title="Delete student record">
+                          <Trash2 size={14}/>
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Desktop table */}
               <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Student Name</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Program</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Year</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Room</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Actions</th>
@@ -447,11 +449,26 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                       <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
                           <p className="text-sm font-bold text-slate-800">{s.name}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase">{s.course}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          {s.program ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full font-bold">
+                              <GraduationCap size={10}/> {s.program}
+                            </span>
+                          ) : <span className="text-slate-300 text-xs">—</span>}
+                        </td>
+                        <td className="px-6 py-4">
+                          {s.academic_year ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-full font-bold">
+                              <Calendar size={10}/> {s.academic_year}
+                            </span>
+                          ) : <span className="text-slate-300 text-xs">—</span>}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600 font-bold">{s.room}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold inline-block border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{s.status}</span>
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold inline-block border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                            {s.status}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -466,6 +483,13 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                                 <ShieldCheck size={14}/> Verified
                               </div>
                             )}
+                            {userRole === 'admin' && (
+                              <button onClick={() => handleDelete(s.id)}
+                                className="p-2 rounded-lg bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all border border-red-100"
+                                title="Delete student record">
+                                <Trash2 size={14}/>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -476,9 +500,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           )}
 
-          {/* ══════════════════════════════════════════
-              ROOMS — updated with card click → modal
-              ══════════════════════════════════════════ */}
+          {/* ── ROOMS ── */}
           {activeTab === 'rooms' && (
             <div className="space-y-6 animate-in fade-in duration-500">
               {/* Summary bar */}
@@ -497,16 +519,51 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* Room cards grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                {rooms.map(room => (
-                  <RoomCard key={room.id} room={room} onView={handleRoomCardClick}/>
-                ))}
-              </div>
+              {/* Block A rooms */}
+              {blockARooms.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-2 h-6 rounded-full bg-blue-500"/>
+                    <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide">Block A — 4-bed rooms</h2>
+                    <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full font-bold">{blockARooms.length} rooms</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {blockARooms.map(room => <RoomCard key={room.id} room={room} onView={handleRoomCardClick}/>)}
+                  </div>
+                </div>
+              )}
+
+              {/* Block B rooms */}
+              {blockBRooms.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-2 h-6 rounded-full bg-purple-500"/>
+                    <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide">Block B — 2-bed rooms</h2>
+                    <span className="text-[10px] text-purple-600 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-full font-bold">{blockBRooms.length} rooms</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {blockBRooms.map(room => <RoomCard key={room.id} room={room} onView={handleRoomCardClick}/>)}
+                  </div>
+                </div>
+              )}
+
+              {/* Block C rooms */}
+              {blockCRooms.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-2 h-6 rounded-full bg-pink-500"/>
+                    <h2 className="text-sm font-black text-slate-700 uppercase tracking-wide">Block C — 3-bed rooms</h2>
+                    <span className="text-[10px] text-pink-600 bg-pink-50 border border-pink-100 px-2 py-0.5 rounded-full font-bold">{blockCRooms.length} rooms</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {blockCRooms.map(room => <RoomCard key={room.id} room={room} onView={handleRoomCardClick}/>)}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* BLOCKS */}
+          {/* ── BLOCKS ── */}
           {activeTab === 'blocks' && (
             <div className="space-y-8 animate-in fade-in duration-500">
               <div className="relative w-full h-56 md:h-80 rounded-3xl overflow-hidden shadow-xl bg-slate-900">
@@ -516,7 +573,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <button onClick={nextSlide} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition-all"><ChevronRight size={20}/></button>
                 <div className="absolute bottom-5 left-5">
                   <span className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest">
-                    {currentSlide === 0 ? 'Block A — Male Wing' : currentSlide === 1 ? 'Block B — Mixed Wing' : 'Block C — Female Wing'}
+                    {currentSlide === 0 ? 'Block A — 4-Bed Rooms' : currentSlide === 1 ? 'Block B — 2-Bed Rooms' : 'Block C — 3-Bed Rooms'}
                   </span>
                   <p className="text-white text-lg font-bold mt-2 drop-shadow">University of Mines & Technology Hostel</p>
                 </div>
@@ -538,16 +595,17 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                       <div key={key}
                         className={`bg-white rounded-3xl border-2 p-5 md:p-6 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-lg ${activeBlock === key ? 'border-blue-400 shadow-blue-100' : 'border-slate-200 hover:border-slate-300'}`}
                         onClick={() => setActiveBlock(key)}>
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center justify-between mb-2">
                           <div>
                             <h3 className="text-base font-black text-slate-800">{def.label}</h3>
-                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full" style={{ background: def.color + '22', color: def.color }}>{def.gender}</span>
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full" style={{ background: def.color + '22', color: def.color }}>{def.desc}</span>
                           </div>
                           <div className="relative flex items-center justify-center">
                             <RingChart percent={ringsVisible ? stat.pct : 0} color={def.color} size={72} stroke={7}/>
                             <span className="absolute text-sm font-black text-slate-700">{stat.pct}%</span>
                           </div>
                         </div>
+                        <p className="text-[10px] text-slate-400 font-bold mb-4">{stat.total} rooms · {def.capacity} beds each</p>
                         <div className="grid grid-cols-3 gap-2 text-center">
                           <div className="bg-slate-50 rounded-xl py-2">
                             <p className="text-lg font-black text-slate-800">{stat.occ}</p>
@@ -568,11 +626,12 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
+              {/* Floor map */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-6">
                 <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-slate-800">{blockDefs[activeBlock].label} — Floor Map</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Click any room to view details or book</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{blockDefs[activeBlock].desc} · click any room to view or book</p>
                   </div>
                   <div className="flex items-center gap-4 text-[10px] font-bold uppercase">
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"/><span className="text-slate-500">Available</span></span>
@@ -597,6 +656,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
+              {/* Amenities */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-6">
                 <h2 className="text-lg font-bold text-slate-800 mb-5">Hostel Amenities</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
@@ -610,6 +670,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
+              {/* Rules */}
               <div className="bg-slate-900 rounded-3xl p-5 md:p-8 shadow-xl">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0"><Shield size={20} className="text-white"/></div>
@@ -632,49 +693,37 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </main>
       </div>
 
-      {/* ══════════════════════════════════════════
-          MODAL: ROOM DETAILS (new!)
-          ══════════════════════════════════════════ */}
+      {/* ── MODAL: ROOM DETAILS ── */}
       {showRoomModal && previewRoom && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowRoomModal(false)}/>
           <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-in zoom-in duration-200">
-
-            {/* Modal header */}
             <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: previewRoom.block === 'A' ? '#3B82F6' : previewRoom.block === 'B' ? '#8B5CF6' : '#EC4899' }}>
                   <DoorOpen size={20} className="text-white"/>
                 </div>
                 <div>
                   <h3 className="font-black text-lg text-slate-800">Room {previewRoom.number}</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">{previewRoom.type} · {previewRoom.status}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">{previewRoom.type} · {previewRoom.capacity}-bed room · {previewRoom.status}</p>
                 </div>
               </div>
-              <button onClick={() => setShowRoomModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors">
-                <X size={18}/>
-              </button>
+              <button onClick={() => setShowRoomModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors"><X size={18}/></button>
             </div>
-
-            {/* Scrollable body */}
             <div className="overflow-y-auto flex-1 p-6 space-y-6">
-
-              {/* Bed capacity visual */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-black text-slate-600 uppercase tracking-wide">Bed Occupancy</p>
                   <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
-                    previewRoom.students === previewRoom.capacity
-                      ? 'bg-red-100 text-red-600'
-                      : previewRoom.students === 0
-                      ? 'bg-emerald-100 text-emerald-600'
-                      : 'bg-amber-100 text-amber-600'
+                    previewRoom.students === previewRoom.capacity ? 'bg-red-100 text-red-600'
+                    : previewRoom.students === 0 ? 'bg-emerald-100 text-emerald-600'
+                    : 'bg-amber-100 text-amber-600'
                   }`}>
                     {previewRoom.capacity - previewRoom.students} bed{previewRoom.capacity - previewRoom.students !== 1 ? 's' : ''} free
                   </span>
                 </div>
                 <BedSlots occupied={previewRoom.students} capacity={previewRoom.capacity}/>
-                {/* Capacity bar */}
                 <div className="mt-3 w-full bg-slate-200 h-1.5 rounded-full">
                   <div className="h-full rounded-full transition-all duration-500 bg-blue-500"
                     style={{ width: `${(previewRoom.students / previewRoom.capacity) * 100}%` }}/>
@@ -682,13 +731,11 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <p className="text-[10px] text-slate-400 mt-1.5 font-medium">{previewRoom.students} of {previewRoom.capacity} beds occupied</p>
               </div>
 
-              {/* Current occupants */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Users size={14} className="text-slate-500"/>
                   <p className="text-xs font-black text-slate-600 uppercase tracking-wide">Current Occupants</p>
                 </div>
-
                 {roomOccupantsLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="w-7 h-7 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"/>
@@ -712,10 +759,16 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                             </span>
                           </div>
                           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400">
-                              <GraduationCap size={10}/> {occ.course || 'N/A'}
-                            </span>
-                            {/* Phone shown to admin only */}
+                            {occ.program && (
+                              <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <GraduationCap size={10}/> {occ.program}
+                              </span>
+                            )}
+                            {occ.academic_year && (
+                              <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <Calendar size={10}/> {occ.academic_year}
+                              </span>
+                            )}
                             {userRole === 'admin' && occ.phone && (
                               <span className="flex items-center gap-1 text-[10px] text-slate-400">
                                 <PhoneCall size={10}/> {occ.phone}
@@ -732,25 +785,20 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 )}
               </div>
 
-              {/* Room info row */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                  <p className="text-[10px] text-blue-400 font-black uppercase mb-1">Room Type</p>
+                  <p className="text-[10px] text-blue-400 font-black uppercase mb-1">Block</p>
                   <p className="text-sm font-bold text-blue-700">{previewRoom.type}</p>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                  <p className="text-[10px] text-blue-400 font-black uppercase mb-1">Room Number</p>
-                  <p className="text-sm font-bold text-blue-700">{previewRoom.number}</p>
+                  <p className="text-[10px] text-blue-400 font-black uppercase mb-1">Bed Capacity</p>
+                  <p className="text-sm font-bold text-blue-700">{previewRoom.capacity} beds per room</p>
                 </div>
               </div>
             </div>
-
-            {/* Footer CTA */}
             <div className="p-6 border-t border-slate-100 shrink-0">
               {previewRoom.status === 'Occupied' ? (
-                <div className="w-full py-4 bg-slate-100 text-slate-400 font-bold rounded-2xl text-center text-sm">
-                  Room is fully occupied
-                </div>
+                <div className="w-full py-4 bg-slate-100 text-slate-400 font-bold rounded-2xl text-center text-sm">Room is fully occupied</div>
               ) : (
                 <button onClick={handleProceedToBook}
                   className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg text-sm flex items-center justify-center gap-2">
@@ -762,7 +810,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
       )}
 
-      {/* MODAL: ADMIN REVIEW */}
+      {/* ── MODAL: ADMIN REVIEW ── */}
       {showReviewModal && selectedStudent && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowReviewModal(false)}/>
@@ -801,25 +849,43 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   </div>
                 )}
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl text-center">
-                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student</p>
-                <h4 className="text-lg font-bold text-slate-700">{selectedStudent.name}</h4>
-                <p className="text-xs text-slate-400 mt-1">Room: {selectedStudent.room}</p>
+              <div className="bg-slate-50 p-4 rounded-2xl">
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-2 text-center">Student Details</p>
+                <h4 className="text-base font-bold text-slate-700 text-center">{selectedStudent.name}</h4>
+                <div className="flex flex-wrap justify-center gap-2 mt-2">
+                  <span className="text-[10px] text-slate-500 bg-white border border-slate-200 px-2 py-1 rounded-lg">Room: {selectedStudent.room}</span>
+                  {selectedStudent.program && (
+                    <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-lg flex items-center gap-1">
+                      <GraduationCap size={9}/> {selectedStudent.program}
+                    </span>
+                  )}
+                  {selectedStudent.academic_year && (
+                    <span className="text-[10px] text-purple-600 bg-purple-50 border border-purple-100 px-2 py-1 rounded-lg flex items-center gap-1">
+                      <Calendar size={9}/> {selectedStudent.academic_year}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => handleDecline(selectedStudent.id)} className="py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all">Decline</button>
-                <button onClick={() => handleAccept(selectedStudent.id)} className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg transition-all">Verify Now</button>
+                <button onClick={() => handleDelete(selectedStudent.id)}
+                  className="py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all">
+                  Decline & Delete
+                </button>
+                <button onClick={() => handleAccept(selectedStudent.id)}
+                  className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg transition-all">
+                  Verify Now
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: BOOKING FORM */}
+      {/* ── MODAL: BOOKING FORM ── */}
       {showBookingModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}/>
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8 animate-in zoom-in duration-300">
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-6 md:p-8 animate-in zoom-in duration-300">
             {bookingSuccess ? (
               <div className="text-center space-y-5 py-4">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -837,21 +903,67 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
               </div>
             ) : (
               <>
-                <h2 className="text-xl md:text-2xl font-bold text-slate-800 mb-1">Book Room {selectedRoom?.number}</h2>
-                <p className="text-slate-400 text-sm mb-6">Upload your payment receipt to complete booking.</p>
-                <form className="space-y-5" onSubmit={handleBookingSubmit}>
-                  <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-7 bg-blue-50/40 text-center">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
+                    <DoorOpen size={20} className="text-white"/>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">Book Room {selectedRoom?.number}</h2>
+                    <p className="text-xs text-slate-400">{selectedRoom?.type} · {selectedRoom?.capacity}-bed room</p>
+                  </div>
+                </div>
+
+                <form className="space-y-4" onSubmit={handleBookingSubmit}>
+                  {/* Receipt upload */}
+                  <div className="relative border-2 border-dashed border-blue-200 rounded-2xl p-6 bg-blue-50/40 text-center">
                     <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required/>
                     <div className="flex flex-col items-center">
-                      <UploadCloud className="text-blue-500 mb-2" size={28}/>
+                      <UploadCloud className="text-blue-500 mb-2" size={26}/>
                       <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
-                      <p className="text-xs text-slate-400 mt-1">JPG, PNG supported — saved to Cloudinary</p>
+                      <p className="text-xs text-slate-400 mt-1">JPG, PNG — saved to Cloudinary</p>
                     </div>
                   </div>
-                  <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Full Name" required/>
-                  <input name="phone" type="tel" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Phone Number" required/>
-                  <button type="submit" className="w-full bg-blue-600 text-white font-bold py-5 rounded-3xl shadow-lg hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">
-                    Confirm Request
+
+                  {/* Full name */}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Full Name</label>
+                    <input name="studentName" type="text"
+                      className="w-full px-4 py-3.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                      placeholder="e.g. Kwame Mensah" required/>
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Phone Number</label>
+                    <input name="phone" type="tel"
+                      className="w-full px-4 py-3.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                      placeholder="e.g. 0241234567" required/>
+                  </div>
+
+                  {/* Program */}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Program / Course</label>
+                    <input name="program" type="text"
+                      className="w-full px-4 py-3.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                      placeholder="e.g. Geomatic Engineering" required/>
+                  </div>
+
+                  {/* Academic Year */}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide mb-1.5 block">Academic Year Admitted</label>
+                    <select name="academicYear"
+                      className="w-full px-4 py-3.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white appearance-none cursor-pointer"
+                      required>
+                      <option value="">Select year...</option>
+                      {academicYears.map(yr => (
+                        <option key={yr} value={yr}>{yr}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button type="submit"
+                    className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-blue-700 transition-all uppercase text-xs tracking-widest mt-2">
+                    Confirm Booking Request
                   </button>
                 </form>
               </>
@@ -906,30 +1018,26 @@ const ActivityItem = ({ label, desc, time }) => (
   </div>
 );
 
-// Updated RoomCard — click opens details modal, not booking directly
 const RoomCard = ({ room, onView }) => {
   const pct        = room.capacity > 0 ? Math.round((room.students / room.capacity) * 100) : 0;
   const isOccupied = room.status === 'Occupied';
-  const bedsLeft   = room.capacity - room.students;
+  const blockColor = room.block === 'A' ? 'text-blue-600' : room.block === 'B' ? 'text-purple-600' : 'text-pink-600';
   return (
     <div onClick={() => onView(room)}
-      className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer group">
-      {/* Top row */}
+      className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer group">
       <div className="flex justify-between items-start mb-4">
         <div>
-          <h4 className="text-xl font-black text-slate-800 group-hover:text-blue-600 transition-colors">Room {room.number}</h4>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{room.type}</p>
+          <h4 className={`text-xl font-black text-slate-800 group-hover:${blockColor} transition-colors`}>Room {room.number}</h4>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{room.type} · {room.capacity}-bed</p>
         </div>
         <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${
-          isOccupied ? 'bg-red-50 text-red-600 border-red-100'
-          : room.students > 0 ? 'bg-amber-50 text-amber-600 border-amber-100'
-          : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+          isOccupied             ? 'bg-red-50 text-red-600 border-red-100'
+          : room.students > 0   ? 'bg-amber-50 text-amber-600 border-amber-100'
+          :                       'bg-emerald-50 text-emerald-600 border-emerald-100'
         }`}>
           {isOccupied ? 'Full' : room.students > 0 ? 'Partial' : 'Available'}
         </span>
       </div>
-
-      {/* Occupant avatars stack */}
       {room.students > 0 && (
         <div className="flex items-center gap-1 mb-4">
           {Array.from({ length: Math.min(room.students, 4) }).map((_, i) => (
@@ -945,23 +1053,16 @@ const RoomCard = ({ room, onView }) => {
           <p className="text-[10px] text-slate-400 font-bold ml-2">{room.students} occupant{room.students !== 1 ? 's' : ''}</p>
         </div>
       )}
-
-      {/* Capacity bar */}
       <div className="w-full bg-slate-100 h-2 rounded-full mb-2">
-        <div className={`h-full rounded-full transition-all duration-500 ${
-          pct === 100 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-blue-500'
-        }`} style={{ width: `${pct}%` }}/>
+        <div className={`h-full rounded-full transition-all duration-500 ${pct === 100 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-blue-500'}`}
+          style={{ width: `${pct}%` }}/>
       </div>
       <div className="flex justify-between items-center mb-4">
         <p className="text-xs text-slate-400 font-medium">{room.students} / {room.capacity} beds</p>
         <p className="text-xs font-bold text-slate-500">{pct}% full</p>
       </div>
-
-      {/* CTA */}
       <div className={`w-full py-2.5 rounded-2xl font-bold text-xs text-center transition-all flex items-center justify-center gap-1.5 ${
-        isOccupied
-          ? 'bg-slate-100 text-slate-400'
-          : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
+        isOccupied ? 'bg-slate-100 text-slate-400' : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
       }`}>
         {isOccupied ? 'Room Full — View Details' : <><DoorOpen size={14}/> View Details & Book</>}
       </div>
