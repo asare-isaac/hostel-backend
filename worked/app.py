@@ -1,7 +1,11 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from datetime import datetime
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 import os
 import cloudinary
 import cloudinary.uploader
@@ -18,6 +22,18 @@ if database_url and database_url.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'postgresql://postgres:harvesters1@localhost:5432/hostel_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['SECRET_KEY']    = os.environ.get('SECRET_KEY', 'hostel-secret-key-2024')
+
+# --- FLASK-MAIL ---
+app.config['MAIL_SERVER']         = 'smtp.gmail.com'
+app.config['MAIL_PORT']           = 587
+app.config['MAIL_USE_TLS']        = True
+app.config['MAIL_USERNAME']       = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD']       = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
+
+FRONTEND_URL    = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+GOOGLE_CLIENT_ID = '798719233864-4qak09a08b2js5n4e80h6ktus6am0fd1.apps.googleusercontent.com'
 
 # --- CLOUDINARY ---
 cloudinary.config(
@@ -30,17 +46,23 @@ cloudinary.config(
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
-db = SQLAlchemy(app)
+db   = SQLAlchemy(app)
+mail = Mail(app)
+s    = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
 # --- MODELS ---
 
 class User(db.Model):
     __tablename__ = 'users'
-    id       = db.Column(db.Integer, primary_key=True)
-    fullname = db.Column(db.String(100), nullable=False)
-    email    = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)
-    role     = db.Column(db.String(20), default='student')
+    id            = db.Column(db.Integer, primary_key=True)
+    fullname      = db.Column(db.String(100), nullable=False)
+    email         = db.Column(db.String(100), unique=True, nullable=False)
+    password      = db.Column(db.String(255), nullable=True)  # nullable for Google users
+    role          = db.Column(db.String(20), default='student')
+    is_verified   = db.Column(db.Boolean, default=False)
+    auth_provider = db.Column(db.String(20), default='email')  # 'email' or 'google'
+    google_id     = db.Column(db.String(100), nullable=True)
+    profile_pic   = db.Column(db.String(500), nullable=True)
 
 class Room(db.Model):
     __tablename__ = 'rooms'
@@ -77,7 +99,7 @@ class Complaint(db.Model):
     student_name = db.Column(db.String(100), nullable=False)
     room_number  = db.Column(db.String(10))
     message      = db.Column(db.Text, nullable=False)
-    status       = db.Column(db.String(20), default='Open')   # Open, Replied, Resolved
+    status       = db.Column(db.String(20), default='Open')
     admin_reply  = db.Column(db.Text, nullable=True)
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
     replied_at   = db.Column(db.DateTime, nullable=True)
@@ -91,7 +113,9 @@ with app.app_context():
             fullname="System Admin",
             email="admin@hostel.com",
             password="admin123",
-            role="admin"
+            role="admin",
+            is_verified=True,
+            auth_provider='email'
         ))
         db.session.commit()
         print("Admin created!")
@@ -107,53 +131,284 @@ with app.app_context():
         db.session.commit()
         print("Seeded: 12×Block A (4-bed), 18×Block B (2-bed), 6×Block C (3-bed)")
 
-# --- ROUTES ---
+# --- HELPER ---
+def send_verification_email(user):
+    token      = s.dumps(user.email, salt='email-verify-salt')
+    verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
+    msg        = Message(subject="HostelHub — Verify Your Email", recipients=[user.email])
+    msg.html   = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h1 style="color: #1e40af; font-size: 24px; margin: 0;">HostelHub</h1>
+            <p style="color: #64748b; font-size: 13px; margin-top: 4px;">University of Mines & Technology</p>
+        </div>
+        <div style="background: white; border-radius: 12px; padding: 28px; border: 1px solid #e2e8f0;">
+            <h2 style="color: #1e293b; font-size: 18px; margin-top: 0;">Verify Your Email Address</h2>
+            <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+                Hi <strong>{user.fullname}</strong>,<br><br>
+                Welcome to HostelHub! Please verify your email address to activate your account.
+            </p>
+            <div style="text-align: center; margin: 28px 0;">
+                <a href="{verify_url}" style="background: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                    Verify My Email
+                </a>
+            </div>
+            <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-bottom: 0;">
+                This link expires in <strong>24 hours</strong>.
+            </p>
+        </div>
+    </div>
+    """
+    mail.send(msg)
+
+# --- AUTH ROUTES ---
 
 @app.route('/api/signup', methods=['POST'])
 def signup():
     try:
-        data = request.json
-        if User.query.filter_by(email=data.get('email')).first():
-            return jsonify({"success": False, "message": "Email already registered!"}), 400
-        db.session.add(User(
+        data  = request.json
+        email = data.get('email', '').strip().lower()
+
+        if User.query.filter_by(email=email).first():
+            return jsonify({"success": False, "message": "This email is already registered. Please log in instead."}), 400
+
+        new_user = User(
             fullname=data.get('fullname'),
-            email=data.get('email'),
+            email=email,
             password=data.get('password'),
-            role='student'
-        ))
+            role='student',
+            is_verified=False,
+            auth_provider='email'
+        )
+        db.session.add(new_user)
         db.session.commit()
-        return jsonify({"success": True, "message": "Account created!"}), 201
+
+        try:
+            send_verification_email(new_user)
+        except Exception as mail_error:
+            print(f"Mail error: {mail_error}")
+            return jsonify({"success": True, "message": "Account created but verification email failed. Contact admin.", "email_sent": False}), 201
+
+        return jsonify({"success": True, "message": "Account created! Please check your email to verify.", "email_sent": True}), 201
+
     except Exception as e:
+        db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
-        data = request.json
-        user = User.query.filter_by(email=data.get('email')).first()
-        if user and user.password == data.get('password'):
-            return jsonify({"success": True, "user_name": user.fullname, "role": user.role}), 200
-        return jsonify({"success": False, "message": "Invalid credentials"}), 401
+        data  = request.json
+        email = data.get('email', '').strip().lower()
+        user  = User.query.filter_by(email=email).first()
+
+        if not user or user.password != data.get('password'):
+            return jsonify({"success": False, "message": "Invalid email or password."}), 401
+
+        # Block Google-only accounts from password login
+        if user.auth_provider == 'google':
+            return jsonify({"success": False, "message": "This account uses Google Sign-In. Please click 'Continue with Google'."}), 403
+
+        if not user.is_verified:
+            return jsonify({
+                "success": False,
+                "message": "Please verify your email before logging in.",
+                "not_verified": True,
+                "email": user.email
+            }), 403
+
+        return jsonify({
+            "success":    True,
+            "user_name":  user.fullname,
+            "role":       user.role,
+            "profile_pic": user.profile_pic
+        }), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
+# --- GOOGLE SIGN-IN ROUTE ---
+@app.route('/api/google-auth', methods=['POST'])
+def google_auth():
+    try:
+        token     = request.json.get('token')
+        if not token:
+            return jsonify({"success": False, "message": "No token provided"}), 400
+
+        # Verify the Google token
+        try:
+            id_info = id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                GOOGLE_CLIENT_ID
+            )
+        except ValueError as e:
+            print(f"Google token verification failed: {e}")
+            return jsonify({"success": False, "message": "Invalid Google token."}), 401
+
+        # Extract user info from Google
+        google_id   = id_info.get('sub')
+        email       = id_info.get('email', '').lower()
+        fullname    = id_info.get('name', '')
+        profile_pic = id_info.get('picture', '')
+        email_verified = id_info.get('email_verified', False)
+
+        if not email_verified:
+            return jsonify({"success": False, "message": "Google account email is not verified."}), 400
+
+        # Check if user already exists
+        user = User.query.filter_by(email=email).first()
+
+        if user:
+            # Existing user — update their Google info and log them in
+            user.google_id    = google_id
+            user.profile_pic  = profile_pic
+            user.is_verified  = True  # Google already verified the email
+            if user.auth_provider == 'email':
+                # They registered with email before — link their Google account
+                user.auth_provider = 'both'
+            db.session.commit()
+        else:
+            # New user — create account automatically
+            # Google has already verified their email so is_verified = True
+            user = User(
+                fullname=fullname,
+                email=email,
+                password=None,
+                role='student',
+                is_verified=True,
+                auth_provider='google',
+                google_id=google_id,
+                profile_pic=profile_pic
+            )
+            db.session.add(user)
+            db.session.commit()
+
+        return jsonify({
+            "success":    True,
+            "user_name":  user.fullname,
+            "role":       user.role,
+            "profile_pic": user.profile_pic,
+            "is_new_user": user.auth_provider == 'google'
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Google auth error: {str(e)}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/verify-email', methods=['POST'])
+def verify_email():
+    try:
+        token = request.json.get('token')
+        try:
+            email = s.loads(token, salt='email-verify-salt', max_age=86400)
+        except SignatureExpired:
+            return jsonify({"success": False, "message": "Verification link has expired. Please request a new one."}), 400
+        except BadSignature:
+            return jsonify({"success": False, "message": "Invalid verification link."}), 400
+
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"success": False, "message": "Account not found."}), 404
+        if user.is_verified:
+            return jsonify({"success": True, "message": "Email already verified. You can log in.", "already_verified": True}), 200
+
+        user.is_verified = True
+        db.session.commit()
+        return jsonify({"success": True, "message": "Email verified successfully! You can now log in."}), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/resend-verification', methods=['POST'])
+def resend_verification():
+    try:
+        email = request.json.get('email', '').strip().lower()
+        user  = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"success": False, "message": "No account found with that email."}), 404
+        if user.is_verified:
+            return jsonify({"success": False, "message": "This email is already verified."}), 400
+        send_verification_email(user)
+        return jsonify({"success": True, "message": "Verification email resent!"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/forgot-password', methods=['POST'])
+def forgot_password():
+    try:
+        email = request.json.get('email', '').strip().lower()
+        user  = User.query.filter_by(email=email).first()
+
+        if user and user.is_verified and user.auth_provider != 'google':
+            token      = s.dumps(email, salt='password-reset-salt')
+            reset_link = f"{FRONTEND_URL}/reset-password?token={token}"
+            msg        = Message(subject="HostelHub — Reset Your Password", recipients=[email])
+            msg.html   = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <h1 style="color: #1e40af;">HostelHub</h1>
+                </div>
+                <div style="background: white; border-radius: 12px; padding: 28px; border: 1px solid #e2e8f0;">
+                    <h2 style="color: #1e293b;">Password Reset Request</h2>
+                    <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+                        Hi <strong>{user.fullname}</strong>,<br><br>
+                        Click the button below to reset your password. This link expires in 30 minutes.
+                    </p>
+                    <div style="text-align: center; margin: 28px 0;">
+                        <a href="{reset_link}" style="background: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                            Reset My Password
+                        </a>
+                    </div>
+                </div>
+            </div>
+            """
+            mail.send(msg)
+
+        return jsonify({"success": True, "message": "If that email is registered, a reset link has been sent."}), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    try:
+        token    = request.json.get('token')
+        password = request.json.get('password')
+        try:
+            email = s.loads(token, salt='password-reset-salt', max_age=1800)
+        except SignatureExpired:
+            return jsonify({"success": False, "message": "Reset link has expired."}), 400
+        except BadSignature:
+            return jsonify({"success": False, "message": "Invalid reset link."}), 400
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found."}), 404
+        user.password = password
+        db.session.commit()
+        return jsonify({"success": True, "message": "Password reset successfully!"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# --- ROOM ROUTES ---
 @app.route('/api/rooms', methods=['GET'])
 def get_rooms():
-    all_rooms = Room.query.all()
     result = []
-    for r in all_rooms:
-        current_count = Student.query.filter_by(room_id=r.id, payment_status='Paid').count()
+    for r in Room.query.all():
+        current_count  = Student.query.filter_by(room_id=r.id, payment_status='Paid').count()
         display_status = 'Occupied' if current_count >= r.max_capacity else 'Available'
         result.append({
-            "id":       r.id,
-            "number":   r.room_number,
-            "type":     r.room_type,
-            "block":    r.block,
-            "status":   display_status,
-            "students": current_count,
-            "capacity": r.max_capacity
+            "id": r.id, "number": r.room_number, "type": r.room_type,
+            "block": r.block, "status": display_status,
+            "students": current_count, "capacity": r.max_capacity
         })
     return jsonify(result)
 
@@ -161,17 +416,15 @@ def get_rooms():
 @app.route('/api/students', methods=['GET'])
 def get_students():
     try:
-        all_students = Student.query.all()
         result = []
-        for s in all_students:
+        for s in Student.query.all():
             result.append({
-                "id":            s.id,
-                "name":          s.full_name,
+                "id": s.id, "name": s.full_name,
                 "room":          s.room_assigned.room_number if s.room_assigned else "Unassigned",
                 "block":         s.room_assigned.block if s.room_assigned else "—",
                 "program":       s.program,
                 "academic_year": s.academic_year,
-                "phone":         s.phone_number,   # full number — masking done in React
+                "phone":         s.phone_number,
                 "status":        s.payment_status,
                 "receipt":       s.receipt_url
             })
@@ -193,46 +446,33 @@ def book_room():
         receipt_url = None
         if file:
             upload_result = cloudinary.uploader.upload(
-                file,
-                folder="hostel_receipts",
-                resource_type="image",
+                file, folder="hostel_receipts", resource_type="image",
                 public_id=f"receipt_{secure_filename(name)}_{room_num}"
             )
             receipt_url = upload_result['secure_url']
-            print(f"Cloudinary upload: {receipt_url}")
 
         room = Room.query.filter_by(room_number=room_num).first()
         db.session.add(Student(
-            full_name=name,
-            phone_number=phone,
-            program=program,
-            academic_year=academic_year,
-            payment_status='Pending',
-            receipt_url=receipt_url,
-            room_id=room.id if room else None
+            full_name=name, phone_number=phone, program=program,
+            academic_year=academic_year, payment_status='Pending',
+            receipt_url=receipt_url, room_id=room.id if room else None
         ))
         db.session.commit()
         return jsonify({"message": "Booking submitted", "receipt_url": receipt_url}), 201
-
     except Exception as e:
         db.session.rollback()
-        print(f"Booking error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/rooms/<int:room_id>/occupants', methods=['GET'])
 def get_room_occupants(room_id):
     try:
-        students = Student.query.filter_by(room_id=room_id).all()
         result = []
-        for s in students:
+        for s in Student.query.filter_by(room_id=room_id).all():
             result.append({
-                "id":            s.id,
-                "name":          s.full_name,
-                "program":       s.program,
-                "academic_year": s.academic_year,
-                "phone":         s.phone_number,
-                "status":        s.payment_status
+                "id": s.id, "name": s.full_name, "program": s.program,
+                "academic_year": s.academic_year, "phone": s.phone_number,
+                "status": s.payment_status
             })
         return jsonify(result), 200
     except Exception as e:
@@ -264,22 +504,17 @@ def delete_student_record(id):
 
 
 # --- COMPLAINT ROUTES ---
-
 @app.route('/api/complaints', methods=['GET'])
 def get_complaints():
     try:
-        complaints = Complaint.query.order_by(Complaint.created_at.desc()).all()
         result = []
-        for c in complaints:
+        for c in Complaint.query.order_by(Complaint.created_at.desc()).all():
             result.append({
-                "id":           c.id,
-                "student_name": c.student_name,
-                "room_number":  c.room_number,
-                "message":      c.message,
-                "status":       c.status,
-                "admin_reply":  c.admin_reply,
-                "created_at":   c.created_at.strftime('%d %b %Y, %H:%M') if c.created_at else None,
-                "replied_at":   c.replied_at.strftime('%d %b %Y, %H:%M') if c.replied_at else None,
+                "id": c.id, "student_name": c.student_name,
+                "room_number": c.room_number, "message": c.message,
+                "status": c.status, "admin_reply": c.admin_reply,
+                "created_at": c.created_at.strftime('%d %b %Y, %H:%M') if c.created_at else None,
+                "replied_at": c.replied_at.strftime('%d %b %Y, %H:%M') if c.replied_at else None,
             })
         return jsonify(result), 200
     except Exception as e:
