@@ -5,28 +5,25 @@ import {
   MapPin, Phone, ShieldCheck,
   ChevronLeft, ChevronRight, UploadCloud, AlertCircle,
   CheckCircle, RefreshCw, X, Wifi, Wind, Droplets,
-  Zap, Lock, BookOpen, Utensils, Shield
+  Zap, Lock, BookOpen, Utensils, Shield, UserCheck,
+  DoorOpen, Hash, GraduationCap, PhoneCall
 } from 'lucide-react';
 
 import blockA from '../assets/hero2.jpg';
 import blockB from '../assets/hero11.jpg';
 import blockC from '../assets/hero3.jpg';
 
-// ─── RING CHART COMPONENT ─────────────────────────────────────────────────────
+// ─── RING CHART ───────────────────────────────────────────────────────────────
 const RingChart = ({ percent, color, size = 80, stroke = 8 }) => {
-  const r = (size - stroke) / 2;
+  const r    = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
-  const offset = circ - (percent / 100) * circ;
+  const off  = circ - (percent / 100) * circ;
   return (
     <svg width={size} height={size} className="-rotate-90">
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke}/>
-      <circle
-        cx={size/2} cy={size/2} r={r} fill="none"
-        stroke={color} strokeWidth={stroke}
-        strokeDasharray={circ} strokeDashoffset={offset}
-        strokeLinecap="round"
-        style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)' }}
-      />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round"
+        style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)' }}/>
     </svg>
   );
 };
@@ -34,19 +31,13 @@ const RingChart = ({ percent, color, size = 80, stroke = 8 }) => {
 // ─── FLOOR MAP ROOM CELL ──────────────────────────────────────────────────────
 const RoomCell = ({ room, onClick }) => {
   const pct = room.capacity > 0 ? (room.students / room.capacity) * 100 : 0;
-  const bg =
-    pct === 0  ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' :
-    pct < 100  ? 'bg-amber-50  border-amber-200  hover:border-amber-400'  :
-                 'bg-red-50    border-red-200    hover:border-red-400';
-  const dot =
-    pct === 0  ? 'bg-emerald-500' :
-    pct < 100  ? 'bg-amber-500'   :
-                 'bg-red-500';
+  const bg  = pct === 0 ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'
+            : pct < 100 ? 'bg-amber-50 border-amber-200 hover:border-amber-400'
+            :              'bg-red-50 border-red-200 hover:border-red-400';
+  const dot = pct === 0 ? 'bg-emerald-500' : pct < 100 ? 'bg-amber-500' : 'bg-red-500';
   return (
-    <button
-      onClick={() => onClick(room)}
-      className={`relative border-2 rounded-xl p-2 text-center transition-all duration-200 hover:scale-105 hover:shadow-md cursor-pointer ${bg}`}
-    >
+    <button onClick={() => onClick(room)}
+      className={`relative border-2 rounded-xl p-2 text-center transition-all duration-200 hover:scale-105 hover:shadow-md cursor-pointer ${bg}`}>
       <div className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${dot}`}/>
       <p className="text-[10px] font-black text-slate-700 leading-tight">{room.number}</p>
       <p className="text-[9px] text-slate-400 font-bold mt-0.5">{room.students}/{room.capacity}</p>
@@ -54,11 +45,24 @@ const RoomCell = ({ room, onClick }) => {
   );
 };
 
+// ─── OCCUPANT AVATAR ─────────────────────────────────────────────────────────
+const OccupantAvatar = ({ name }) => {
+  const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
+  const colors   = ['#3B82F6','#8B5CF6','#EC4899','#10B981','#F59E0B','#EF4444','#06B6D4'];
+  const color    = colors[name?.charCodeAt(0) % colors.length] || '#3B82F6';
+  return (
+    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0"
+      style={{ background: color }}>
+      {initials}
+    </div>
+  );
+};
+
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 const Dashboard = ({ userRole, userName, onLogout }) => {
 
-  // --- STATE ---
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  // ── STATE ──
+  const [selectedStudent, setSelectedStudent]   = useState(null);
   const [showReviewModal, setShowReviewModal]   = useState(false);
   const [currentSlide, setCurrentSlide]         = useState(0);
   const [activeTab, setActiveTab]               = useState('overview');
@@ -69,15 +73,21 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const [sidebarOpen, setSidebarOpen]           = useState(false);
   const [activeBlock, setActiveBlock]           = useState('A');
   const [ringsVisible, setRingsVisible]         = useState(false);
-  const [receiptLoading, setReceiptLoading]     = useState(false); // NEW: image loading state
-  const [receiptError, setReceiptError]         = useState(false); // NEW: image error state
+  const [receiptLoading, setReceiptLoading]     = useState(false);
+  const [receiptError, setReceiptError]         = useState(false);
+
+  // Room Details modal state
+  const [showRoomModal, setShowRoomModal]       = useState(false);
+  const [roomOccupants, setRoomOccupants]       = useState([]);
+  const [roomOccupantsLoading, setRoomOccupantsLoading] = useState(false);
+  const [previewRoom, setPreviewRoom]           = useState(null);
 
   const [studentsList, setStudentsList] = useState([]);
   const [rooms, setRooms]               = useState([]);
 
   const sidebarRef = useRef(null);
 
-  // --- API ---
+  // ── API ──
   const fetchRooms = async () => {
     try {
       const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/rooms');
@@ -94,9 +104,24 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     } catch (err) { console.error('Students fetch error:', err); }
   };
 
+  // Fetch occupants for a specific room
+  const fetchRoomOccupants = async (roomId) => {
+    setRoomOccupantsLoading(true);
+    try {
+      const res  = await fetch(`https://hostel-backend-39y0.onrender.com/api/rooms/${roomId}/occupants`);
+      const data = await res.json();
+      setRoomOccupants(data);
+    } catch (err) {
+      console.error('Occupants fetch error:', err);
+      setRoomOccupants([]);
+    } finally {
+      setRoomOccupantsLoading(false);
+    }
+  };
+
   useEffect(() => { fetchRooms(); fetchStudents(); }, []);
 
-  // Sidebar outside-click close
+  // Sidebar outside-click
   useEffect(() => {
     const h = (e) => {
       if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target))
@@ -110,13 +135,11 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     };
   }, [sidebarOpen]);
 
-  // Lock body scroll when sidebar open
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen]);
 
-  // Animate rings when blocks tab opens
   useEffect(() => {
     if (activeTab === 'blocks') {
       setRingsVisible(false);
@@ -125,10 +148,10 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     }
   }, [activeTab]);
 
-  // Slideshow auto-advance
+  // Slideshow
   const hostelImages = [blockA, blockB, blockC];
-  const nextSlide = () => setCurrentSlide(p => (p === 2 ? 0 : p + 1));
-  const prevSlide = () => setCurrentSlide(p => (p === 0 ? 2 : p - 1));
+  const nextSlide    = () => setCurrentSlide(p => (p === 2 ? 0 : p + 1));
+  const prevSlide    = () => setCurrentSlide(p => (p === 0 ? 2 : p - 1));
   useEffect(() => {
     const t = setInterval(nextSlide, 5000);
     return () => clearInterval(t);
@@ -136,22 +159,28 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const handleNavClick = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
 
-  // --- BOOKING ---
-  const handleOpenBooking = (room) => {
-    setSelectedRoom(room);
+  // ── OPEN ROOM DETAILS MODAL (replaces direct booking open) ──
+  const handleRoomCardClick = async (room) => {
+    setPreviewRoom(room);
+    setShowRoomModal(true);
+    await fetchRoomOccupants(room.id);
+  };
+
+  // Proceed from Room Details → Booking Form
+  const handleProceedToBook = () => {
+    setShowRoomModal(false);
+    setSelectedRoom(previewRoom);
     setBookingSuccess(false);
     setShowBookingModal(true);
   };
 
+  // ── BOOKING SUBMIT ──
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     fd.append('roomNumber', selectedRoom.number);
     try {
-      const res = await fetch('https://hostel-backend-39y0.onrender.com/api/book', {
-        method: 'POST',
-        body: fd
-      });
+      const res = await fetch('https://hostel-backend-39y0.onrender.com/api/book', { method: 'POST', body: fd });
       if (res.ok) {
         setBookingSuccess(true);
         fetchStudents();
@@ -159,15 +188,13 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
       } else {
         alert('Server error. Please try again.');
       }
-    } catch {
-      alert('Connection failed. Please check your internet.');
-    }
+    } catch { alert('Connection failed. Please check your internet.'); }
   };
 
-  // --- ADMIN ACTIONS ---
+  // ── ADMIN ACTIONS ──
   const handleOpenReview = (student) => {
     setSelectedStudent(student);
-    setReceiptLoading(true);  // reset image state each time modal opens
+    setReceiptLoading(true);
     setReceiptError(false);
     setShowReviewModal(true);
   };
@@ -175,13 +202,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const handleAccept = async (id) => {
     try {
       const res = await fetch(`https://hostel-backend-39y0.onrender.com/api/accept-student/${id}`, { method: 'POST' });
-      if (res.ok) {
-        fetchStudents();
-        fetchRooms();
-        setShowReviewModal(false);
-        setSelectedStudent(null);
-        alert('Verification Complete: Student access granted.');
-      }
+      if (res.ok) { fetchStudents(); fetchRooms(); setShowReviewModal(false); setSelectedStudent(null); alert('Verified!'); }
     } catch (e) { console.error(e); }
   };
 
@@ -189,26 +210,22 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     if (!window.confirm('Permanently delete this record?')) return;
     try {
       const res = await fetch(`https://hostel-backend-39y0.onrender.com/api/students/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setStudentsList(p => p.filter(s => s.id !== id));
-        setShowReviewModal(false);
-        setSelectedStudent(null);
-      }
+      if (res.ok) { setStudentsList(p => p.filter(s => s.id !== id)); setShowReviewModal(false); setSelectedStudent(null); }
     } catch (e) { console.error(e); }
   };
 
-  // --- STATS ---
+  // ── STATS ──
   const filteredStudents = studentsList.filter(s =>
     s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.room?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  const totalStudents  = studentsList.length;
-  const occupiedBeds   = rooms.reduce((a, r) => a + (r.students || 0), 0);
-  const totalCapacity  = rooms.reduce((a, r) => a + (r.capacity || 0), 0);
-  const occupancyRate  = totalCapacity > 0 ? Math.round((occupiedBeds / totalCapacity) * 100) : 0;
-  const pendingCount   = studentsList.filter(s => s.status === 'Pending').length;
+  const totalStudents = studentsList.length;
+  const occupiedBeds  = rooms.reduce((a, r) => a + (r.students || 0), 0);
+  const totalCapacity = rooms.reduce((a, r) => a + (r.capacity || 0), 0);
+  const occupancyRate = totalCapacity > 0 ? Math.round((occupiedBeds / totalCapacity) * 100) : 0;
+  const pendingCount  = studentsList.filter(s => s.status === 'Pending').length;
 
-  // --- BLOCK DATA ---
+  // ── BLOCK DATA ──
   const maleRooms   = rooms.filter(r => r.type === 'Male');
   const femaleRooms = rooms.filter(r => r.type === 'Female');
   const blockDefs   = {
@@ -221,18 +238,18 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     const cap = br.reduce((a, r) => a + (r.capacity || 0), 0);
     const occ = br.reduce((a, r) => a + (r.students || 0), 0);
     const pct = cap > 0 ? Math.round((occ / cap) * 100) : 0;
-    return { cap, occ, pct, avail: br.filter(r => r.status !== 'Occupied').length, total: br.length };
+    return { cap, occ, pct, avail: br.filter(r => r.status !== 'Occupied').length };
   };
 
   const amenities = [
     { icon: <Wifi size={18}/>,     label: 'Free Wi-Fi',    desc: 'High-speed in all blocks' },
-    { icon: <Wind size={18}/>,     label: 'Ventilation',   desc: 'Cross-ventilated rooms' },
-    { icon: <Droplets size={18}/>, label: 'Running Water', desc: '24 hr water supply' },
-    { icon: <Zap size={18}/>,      label: 'Power Supply',  desc: 'Backup generator' },
-    { icon: <Lock size={18}/>,     label: 'Security',      desc: 'Gated + night guards' },
-    { icon: <BookOpen size={18}/>, label: 'Study Room',    desc: 'Block B, 2nd floor' },
-    { icon: <Utensils size={18}/>, label: 'Dining Hall',   desc: 'Meals 3× daily' },
-    { icon: <Shield size={18}/>,   label: 'CCTV Coverage', desc: 'All corridors' },
+    { icon: <Wind size={18}/>,     label: 'Ventilation',   desc: 'Cross-ventilated rooms'   },
+    { icon: <Droplets size={18}/>, label: 'Running Water', desc: '24 hr water supply'       },
+    { icon: <Zap size={18}/>,      label: 'Power Supply',  desc: 'Backup generator'         },
+    { icon: <Lock size={18}/>,     label: 'Security',      desc: 'Gated + night guards'     },
+    { icon: <BookOpen size={18}/>, label: 'Study Room',    desc: 'Block B, 2nd floor'       },
+    { icon: <Utensils size={18}/>, label: 'Dining Hall',   desc: 'Meals 3× daily'           },
+    { icon: <Shield size={18}/>,   label: 'CCTV Coverage', desc: 'All corridors'            },
   ];
 
   const rules = [
@@ -246,22 +263,36 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const profileImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName || 'Guest')}&background=0D8ABC&color=fff`;
 
+  // Bed slots visual
+  const BedSlots = ({ occupied, capacity }) => (
+    <div className="flex gap-1.5 flex-wrap">
+      {Array.from({ length: capacity }).map((_, i) => (
+        <div key={i}
+          className={`w-8 h-10 rounded-lg border-2 flex items-center justify-center transition-all ${
+            i < occupied
+              ? 'bg-blue-100 border-blue-300'
+              : 'bg-slate-50 border-dashed border-slate-300'
+          }`}>
+          {i < occupied
+            ? <Bed size={14} className="text-blue-500"/>
+            : <Bed size={14} className="text-slate-300"/>
+          }
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
 
-      {/* MOBILE BACKDROP */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"/>
-      )}
+      {sidebarOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"/>}
 
       {/* SIDEBAR */}
-      <aside
-        ref={sidebarRef}
+      <aside ref={sidebarRef}
         className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col
           transition-transform duration-300 ease-in-out
           md:relative md:w-64 md:translate-x-0 md:z-auto
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
-      >
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <span className="text-2xl font-bold tracking-tight text-blue-400">
             HostelHub <span className="text-[10px] bg-blue-500/20 px-2 py-0.5 rounded text-blue-200">v2.0</span>
@@ -270,8 +301,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             <X size={20}/>
           </button>
         </div>
-
-        {/* Mobile user pill */}
         <div className="md:hidden px-4 py-4 border-b border-slate-800">
           <div className="flex items-center gap-3 bg-slate-800 rounded-xl px-4 py-3">
             <img src={profileImage} className="h-9 w-9 rounded-full border-2 border-blue-500 shrink-0" alt="profile"/>
@@ -281,7 +310,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           </div>
         </div>
-
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {[
             { icon: <LayoutDashboard size={20}/>, label: 'Overview',        tab: 'overview'  },
@@ -292,7 +320,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             <NavItem key={tab} icon={icon} label={label} active={activeTab === tab} onClick={() => handleNavClick(tab)}/>
           ))}
         </nav>
-
         <div className="p-4 border-t border-slate-800">
           <button onClick={onLogout} className="flex items-center gap-3 text-slate-400 hover:text-white hover:bg-slate-800 w-full px-4 py-3 rounded-xl text-sm font-bold uppercase transition-all">
             <LogOut size={20}/> <span>Logout</span>
@@ -300,25 +327,21 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
       </aside>
 
-      {/* MAIN AREA */}
+      {/* MAIN */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* HEADER */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0 gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            {/* Hamburger */}
-            <button
-              onClick={() => setSidebarOpen(true)}
+            <button onClick={() => setSidebarOpen(true)}
               className="md:hidden flex flex-col justify-center items-center w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-700 active:scale-95 transition-all shrink-0 gap-[5px] group"
-              aria-label="Open menu"
-            >
+              aria-label="Open menu">
               <span className="block w-5 h-[2px] bg-white rounded-full"/>
               <span className="block w-3.5 h-[2px] bg-blue-400 rounded-full transition-all duration-200 group-hover:w-5"/>
               <span className="block w-5 h-[2px] bg-white rounded-full"/>
             </button>
             <h1 className="text-base md:text-xl font-bold text-slate-800 capitalize tracking-tight truncate">{activeTab}</h1>
           </div>
-
           <div className="flex items-center gap-3 md:gap-6 shrink-0">
             <button onClick={() => { fetchRooms(); fetchStudents(); }} className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-full transition-all group">
               <RefreshCw size={18} className="group-active:rotate-180 transition-transform duration-500"/>
@@ -343,13 +366,13 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         {/* CONTENT */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
 
-          {/* ── OVERVIEW ── */}
+          {/* OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-                <StatCard title="Total Students" value={totalStudents}  icon={<Users className="text-blue-600"/>}        trend="+Live"/>
-                <StatCard title="Occupied Beds"  value={occupiedBeds}   icon={<Bed className="text-green-600"/>}         trend={`${occupancyRate}% Full`}/>
-                <StatCard title="Pending Review" value={pendingCount}   icon={<CreditCard className="text-amber-600"/>}  trend="Action Required"/>
+                <StatCard title="Total Students" value={totalStudents}  icon={<Users className="text-blue-600"/>}          trend="+Live"/>
+                <StatCard title="Occupied Beds"  value={occupiedBeds}   icon={<Bed className="text-green-600"/>}           trend={`${occupancyRate}% Full`}/>
+                <StatCard title="Pending Review" value={pendingCount}   icon={<CreditCard className="text-amber-600"/>}    trend="Action Required"/>
                 <StatCard title="Health Score"   value="98%"            icon={<ShieldCheck className="text-emerald-600"/>} trend="Safe"/>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -365,15 +388,15 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <div className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <h3 className="text-base md:text-lg font-bold text-slate-800 mb-4">System Status</h3>
                   <div className="space-y-4">
-                    <ActivityItem label="Live Database"      desc="Connected to Neon PostgreSQL"  time="Status: Online"/>
-                    <ActivityItem label="Cloudinary Storage" desc="Receipts stored permanently"   time="Status: Active"/>
+                    <ActivityItem label="Live Database"      desc="Connected to Neon PostgreSQL" time="Status: Online"/>
+                    <ActivityItem label="Cloudinary Storage" desc="Receipts stored permanently"  time="Status: Active"/>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ── STUDENTS ── */}
+          {/* STUDENTS */}
           {activeTab === 'students' && (
             <div className="space-y-5 animate-in fade-in duration-500">
               <div className="relative w-full md:w-96">
@@ -382,8 +405,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
               </div>
-
-              {/* Mobile cards */}
               <div className="md:hidden space-y-3">
                 {filteredStudents.map(s => (
                   <div key={s.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
@@ -392,9 +413,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                         <p className="font-bold text-slate-800 text-sm">{s.name}</p>
                         <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{s.course}</p>
                       </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
-                        {s.status}
-                      </span>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{s.status}</span>
                     </div>
                     <p className="text-xs text-slate-500 mb-3">Room: <span className="font-bold text-slate-700">{s.room}</span></p>
                     <div className="flex justify-end">
@@ -413,8 +432,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   </div>
                 ))}
               </div>
-
-              {/* Desktop table */}
               <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -434,9 +451,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600 font-bold">{s.room}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold inline-block border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
-                            {s.status}
-                          </span>
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold inline-block border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{s.status}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -461,18 +476,39 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           )}
 
-          {/* ── ROOMS ── */}
+          {/* ══════════════════════════════════════════
+              ROOMS — updated with card click → modal
+              ══════════════════════════════════════════ */}
           {activeTab === 'rooms' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 animate-in fade-in duration-500">
-              {rooms.map(room => <RoomCard key={room.id} room={room} onBook={handleOpenBooking}/>)}
+            <div className="space-y-6 animate-in fade-in duration-500">
+              {/* Summary bar */}
+              <div className="grid grid-cols-3 gap-3 md:gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm">
+                  <p className="text-2xl font-black text-slate-800">{rooms.length}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Total Rooms</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm">
+                  <p className="text-2xl font-black text-emerald-600">{rooms.filter(r => r.status === 'Available').length}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Available</p>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm">
+                  <p className="text-2xl font-black text-blue-600">{rooms.filter(r => r.status === 'Occupied').length}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Fully Occupied</p>
+                </div>
+              </div>
+
+              {/* Room cards grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {rooms.map(room => (
+                  <RoomCard key={room.id} room={room} onView={handleRoomCardClick}/>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* ── BLOCKS & LAYOUT ── */}
+          {/* BLOCKS */}
           {activeTab === 'blocks' && (
             <div className="space-y-8 animate-in fade-in duration-500">
-
-              {/* Hero slideshow */}
               <div className="relative w-full h-56 md:h-80 rounded-3xl overflow-hidden shadow-xl bg-slate-900">
                 <img src={hostelImages[currentSlide]} className="w-full h-full object-cover duration-700 brightness-75" alt="Block View"/>
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"/>
@@ -492,7 +528,6 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* Block stat cards */}
               <div>
                 <h2 className="text-lg font-bold text-slate-800 mb-4">Block Overview</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -502,15 +537,11 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                     return (
                       <div key={key}
                         className={`bg-white rounded-3xl border-2 p-5 md:p-6 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-lg ${activeBlock === key ? 'border-blue-400 shadow-blue-100' : 'border-slate-200 hover:border-slate-300'}`}
-                        onClick={() => setActiveBlock(key)}
-                      >
+                        onClick={() => setActiveBlock(key)}>
                         <div className="flex items-center justify-between mb-4">
                           <div>
                             <h3 className="text-base font-black text-slate-800">{def.label}</h3>
-                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
-                              style={{ background: def.color + '22', color: def.color }}>
-                              {def.gender}
-                            </span>
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full" style={{ background: def.color + '22', color: def.color }}>{def.gender}</span>
                           </div>
                           <div className="relative flex items-center justify-center">
                             <RingChart percent={ringsVisible ? stat.pct : 0} color={def.color} size={72} stroke={7}/>
@@ -537,12 +568,11 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* Interactive floor map */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-6">
                 <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                   <div>
                     <h2 className="text-lg font-bold text-slate-800">{blockDefs[activeBlock].label} — Floor Map</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Click any room to book it</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Click any room to view details or book</p>
                   </div>
                   <div className="flex items-center gap-4 text-[10px] font-bold uppercase">
                     <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"/><span className="text-slate-500">Available</span></span>
@@ -556,26 +586,23 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   </div>
                   <div className="relative z-10 grid grid-cols-6 gap-2 mb-10">
                     {blockDefs[activeBlock].rooms.slice(0, Math.ceil(blockDefs[activeBlock].rooms.length / 2)).map(room => (
-                      <RoomCell key={room.id} room={room} onClick={handleOpenBooking}/>
+                      <RoomCell key={room.id} room={room} onClick={handleRoomCardClick}/>
                     ))}
                   </div>
                   <div className="relative z-10 grid grid-cols-6 gap-2 mt-10">
                     {blockDefs[activeBlock].rooms.slice(Math.ceil(blockDefs[activeBlock].rooms.length / 2)).map(room => (
-                      <RoomCell key={room.id} room={room} onClick={handleOpenBooking}/>
+                      <RoomCell key={room.id} room={room} onClick={handleRoomCardClick}/>
                     ))}
                   </div>
                 </div>
               </div>
 
-              {/* Amenities */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-6">
                 <h2 className="text-lg font-bold text-slate-800 mb-5">Hostel Amenities</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
                   {amenities.map(({ icon, label, desc }) => (
                     <div key={label} className="flex flex-col items-center text-center p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-all duration-200 group">
-                      <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-200 flex items-center justify-center mb-3 text-blue-500 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">
-                        {icon}
-                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-white shadow-sm border border-slate-200 flex items-center justify-center mb-3 text-blue-500 group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all duration-200">{icon}</div>
                       <p className="text-xs font-bold text-slate-700 leading-tight">{label}</p>
                       <p className="text-[10px] text-slate-400 mt-1 leading-snug">{desc}</p>
                     </div>
@@ -583,12 +610,9 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* Rules */}
               <div className="bg-slate-900 rounded-3xl p-5 md:p-8 shadow-xl">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
-                    <Shield size={20} className="text-white"/>
-                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0"><Shield size={20} className="text-white"/></div>
                   <div>
                     <h2 className="text-lg font-bold text-white">Hostel Rules & Regulations</h2>
                     <p className="text-xs text-slate-400">All residents must comply</p>
@@ -603,58 +627,173 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   ))}
                 </div>
               </div>
-
             </div>
           )}
         </main>
       </div>
 
-      {/* ── MODAL: ADMIN REVIEW ── */}
+      {/* ══════════════════════════════════════════
+          MODAL: ROOM DETAILS (new!)
+          ══════════════════════════════════════════ */}
+      {showRoomModal && previewRoom && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowRoomModal(false)}/>
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-in zoom-in duration-200">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                  <DoorOpen size={20} className="text-white"/>
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-slate-800">Room {previewRoom.number}</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">{previewRoom.type} · {previewRoom.status}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowRoomModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors">
+                <X size={18}/>
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+
+              {/* Bed capacity visual */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-black text-slate-600 uppercase tracking-wide">Bed Occupancy</p>
+                  <span className={`text-[10px] font-black px-3 py-1 rounded-full ${
+                    previewRoom.students === previewRoom.capacity
+                      ? 'bg-red-100 text-red-600'
+                      : previewRoom.students === 0
+                      ? 'bg-emerald-100 text-emerald-600'
+                      : 'bg-amber-100 text-amber-600'
+                  }`}>
+                    {previewRoom.capacity - previewRoom.students} bed{previewRoom.capacity - previewRoom.students !== 1 ? 's' : ''} free
+                  </span>
+                </div>
+                <BedSlots occupied={previewRoom.students} capacity={previewRoom.capacity}/>
+                {/* Capacity bar */}
+                <div className="mt-3 w-full bg-slate-200 h-1.5 rounded-full">
+                  <div className="h-full rounded-full transition-all duration-500 bg-blue-500"
+                    style={{ width: `${(previewRoom.students / previewRoom.capacity) * 100}%` }}/>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5 font-medium">{previewRoom.students} of {previewRoom.capacity} beds occupied</p>
+              </div>
+
+              {/* Current occupants */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Users size={14} className="text-slate-500"/>
+                  <p className="text-xs font-black text-slate-600 uppercase tracking-wide">Current Occupants</p>
+                </div>
+
+                {roomOccupantsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-7 h-7 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"/>
+                  </div>
+                ) : roomOccupants.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <Bed size={28} className="text-slate-300 mx-auto mb-2"/>
+                    <p className="text-sm text-slate-400 font-medium">No occupants yet</p>
+                    <p className="text-xs text-slate-300 mt-1">Be the first to book this room</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {roomOccupants.map((occ, i) => (
+                      <div key={occ.id} className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                        <OccupantAvatar name={occ.name}/>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold text-slate-800 truncate">{occ.name}</p>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full shrink-0 ${occ.status === 'Paid' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                              {occ.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                              <GraduationCap size={10}/> {occ.course || 'N/A'}
+                            </span>
+                            {/* Phone shown to admin only */}
+                            {userRole === 'admin' && occ.phone && (
+                              <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <PhoneCall size={10}/> {occ.phone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center">
+                          <p className="text-[9px] font-black text-slate-500">B{i + 1}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Room info row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                  <p className="text-[10px] text-blue-400 font-black uppercase mb-1">Room Type</p>
+                  <p className="text-sm font-bold text-blue-700">{previewRoom.type}</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                  <p className="text-[10px] text-blue-400 font-black uppercase mb-1">Room Number</p>
+                  <p className="text-sm font-bold text-blue-700">{previewRoom.number}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer CTA */}
+            <div className="p-6 border-t border-slate-100 shrink-0">
+              {previewRoom.status === 'Occupied' ? (
+                <div className="w-full py-4 bg-slate-100 text-slate-400 font-bold rounded-2xl text-center text-sm">
+                  Room is fully occupied
+                </div>
+              ) : (
+                <button onClick={handleProceedToBook}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg text-sm flex items-center justify-center gap-2">
+                  <UploadCloud size={18}/> Book This Room
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADMIN REVIEW */}
       {showReviewModal && selectedStudent && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowReviewModal(false)}/>
           <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8 animate-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
-              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors">
-                <X size={18}/>
-              </button>
+              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors"><X size={18}/></button>
             </div>
-
             <div className="space-y-5">
-              {/* ── RECEIPT IMAGE — Cloudinary URL used directly ── */}
               <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 relative overflow-hidden flex items-center justify-center">
-
                 {selectedStudent?.receipt ? (
                   <>
-                    {/* Loading spinner shown while image fetches */}
                     {receiptLoading && !receiptError && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-50 z-10">
                         <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3"/>
                         <p className="text-blue-400 text-xs font-medium">Loading receipt...</p>
                       </div>
                     )}
-
-                    {/* Error state */}
                     {receiptError && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-50 z-10">
                         <AlertCircle className="text-red-400 mb-2" size={32}/>
                         <p className="text-red-400 text-sm font-medium">Failed to load image</p>
-                        <p className="text-slate-400 text-xs mt-1">Check Cloudinary credentials</p>
                       </div>
                     )}
-
-                    {/* THE FIX: src is the direct Cloudinary https:// URL — no manipulation */}
-                    <img
-                      src={selectedStudent.receipt}
+                    <img src={selectedStudent.receipt}
                       className={`w-full h-full object-contain transition-opacity duration-300 ${receiptLoading || receiptError ? 'opacity-0' : 'opacity-100'}`}
                       alt="Student Payment Receipt"
                       onLoad={() => setReceiptLoading(false)}
-                      onError={() => { setReceiptLoading(false); setReceiptError(true); }}
-                    />
+                      onError={() => { setReceiptLoading(false); setReceiptError(true); }}/>
                   </>
                 ) : (
-                  /* receipt field is null — booking was made before Cloudinary fix */
                   <div className="flex flex-col items-center justify-center">
                     <AlertCircle className="text-blue-300 mb-2" size={32}/>
                     <p className="text-blue-400 text-sm font-medium italic">No receipt uploaded</p>
@@ -662,14 +801,11 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   </div>
                 )}
               </div>
-
-              {/* Student info */}
               <div className="bg-slate-50 p-4 rounded-2xl text-center">
                 <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student</p>
                 <h4 className="text-lg font-bold text-slate-700">{selectedStudent.name}</h4>
                 <p className="text-xs text-slate-400 mt-1">Room: {selectedStudent.room}</p>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <button onClick={() => handleDecline(selectedStudent.id)} className="py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all">Decline</button>
                 <button onClick={() => handleAccept(selectedStudent.id)} className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg transition-all">Verify Now</button>
@@ -679,7 +815,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
       )}
 
-      {/* ── MODAL: BOOKING FORM ── */}
+      {/* MODAL: BOOKING FORM */}
       {showBookingModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}/>
@@ -770,27 +906,65 @@ const ActivityItem = ({ label, desc, time }) => (
   </div>
 );
 
-const RoomCard = ({ room, onBook }) => {
+// Updated RoomCard — click opens details modal, not booking directly
+const RoomCard = ({ room, onView }) => {
+  const pct        = room.capacity > 0 ? Math.round((room.students / room.capacity) * 100) : 0;
   const isOccupied = room.status === 'Occupied';
+  const bedsLeft   = room.capacity - room.students;
   return (
-    <div className="bg-white p-5 md:p-7 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-200 transition-all">
-      <div className="flex justify-between items-start mb-5">
+    <div onClick={() => onView(room)}
+      className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer group">
+      {/* Top row */}
+      <div className="flex justify-between items-start mb-4">
         <div>
-          <h4 className="text-lg md:text-xl font-black text-slate-800">Room {room.number}</h4>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{room.type}</p>
+          <h4 className="text-xl font-black text-slate-800 group-hover:text-blue-600 transition-colors">Room {room.number}</h4>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{room.type}</p>
         </div>
-        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${room.status === 'Available' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-          {room.status}
+        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border ${
+          isOccupied ? 'bg-red-50 text-red-600 border-red-100'
+          : room.students > 0 ? 'bg-amber-50 text-amber-600 border-amber-100'
+          : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+        }`}>
+          {isOccupied ? 'Full' : room.students > 0 ? 'Partial' : 'Available'}
         </span>
       </div>
+
+      {/* Occupant avatars stack */}
+      {room.students > 0 && (
+        <div className="flex items-center gap-1 mb-4">
+          {Array.from({ length: Math.min(room.students, 4) }).map((_, i) => (
+            <div key={i} className="w-7 h-7 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center -ml-1 first:ml-0 shadow-sm">
+              <Users size={12} className="text-blue-500"/>
+            </div>
+          ))}
+          {room.students > 4 && (
+            <div className="w-7 h-7 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center -ml-1 shadow-sm">
+              <p className="text-[9px] font-black text-slate-500">+{room.students - 4}</p>
+            </div>
+          )}
+          <p className="text-[10px] text-slate-400 font-bold ml-2">{room.students} occupant{room.students !== 1 ? 's' : ''}</p>
+        </div>
+      )}
+
+      {/* Capacity bar */}
       <div className="w-full bg-slate-100 h-2 rounded-full mb-2">
-        <div className="bg-blue-600 h-full rounded-full transition-all" style={{width:`${(room.students/room.capacity)*100}%`}}/>
+        <div className={`h-full rounded-full transition-all duration-500 ${
+          pct === 100 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-blue-500'
+        }`} style={{ width: `${pct}%` }}/>
       </div>
-      <p className="text-xs text-slate-400 mb-4 font-medium">{room.students} / {room.capacity} beds occupied</p>
-      <button onClick={() => onBook(room)} disabled={isOccupied}
-        className={`w-full py-3 rounded-2xl font-bold text-xs transition-all ${isOccupied ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg'}`}>
-        {isOccupied ? 'Room Full' : 'Book Now'}
-      </button>
+      <div className="flex justify-between items-center mb-4">
+        <p className="text-xs text-slate-400 font-medium">{room.students} / {room.capacity} beds</p>
+        <p className="text-xs font-bold text-slate-500">{pct}% full</p>
+      </div>
+
+      {/* CTA */}
+      <div className={`w-full py-2.5 rounded-2xl font-bold text-xs text-center transition-all flex items-center justify-center gap-1.5 ${
+        isOccupied
+          ? 'bg-slate-100 text-slate-400'
+          : 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white'
+      }`}>
+        {isOccupied ? 'Room Full — View Details' : <><DoorOpen size={14}/> View Details & Book</>}
+      </div>
     </div>
   );
 };
