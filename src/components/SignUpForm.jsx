@@ -14,6 +14,22 @@ const GoogleIcon = () => (
   </svg>
 );
 
+// ─── DECODE GOOGLE JWT ────────────────────────────────────────────────────────
+const decodeGoogleToken = (token) => {
+  try {
+    const base64Url   = token.split('.')[1];
+    const base64      = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64).split('').map(c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
+
 // ─── FIELD ERROR ──────────────────────────────────────────────────────────────
 const FieldError = ({ message }) => {
   if (!message) return null;
@@ -50,7 +66,7 @@ const PasswordStrength = ({ password }) => {
       </div>
       <p className={`text-xs font-bold ${score <= 1 ? 'text-red-500' : score === 2 ? 'text-amber-500' : score === 3 ? 'text-blue-500' : 'text-green-500'}`}>
         {label} password
-        {score < 4 && <span className="text-slate-400 font-normal"> — try adding numbers, symbols or uppercase letters</span>}
+        {score < 4 && <span className="text-slate-400 font-normal"> — try adding numbers, symbols or uppercase</span>}
       </p>
     </div>
   );
@@ -96,14 +112,14 @@ const CheckEmailScreen = ({ email, onResend, resending, resendSuccess }) => (
           </div>
         ))}
       </div>
-      <p className="text-xs text-slate-400">Didn't receive the email? Check your spam folder or</p>
+      <p className="text-xs text-slate-400">Didn't receive it? Check your spam folder or</p>
       {resendSuccess ? (
         <div className="flex items-center justify-center gap-2 text-green-600 text-sm font-bold">
           <CheckCircle size={16}/> Verification email resent!
         </div>
       ) : (
         <button onClick={onResend} disabled={resending}
-          className="flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-bold mx-auto transition-all disabled:opacity-50">
+          className="flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-bold mx-auto disabled:opacity-50">
           {resending ? <><Loader2 size={14} className="animate-spin"/> Resending...</> : <><RefreshCw size={14}/> Resend verification email</>}
         </button>
       )}
@@ -133,22 +149,30 @@ const SignUpForm = () => {
 
   // Load Google script
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src   = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
+    const script   = document.createElement('script');
+    script.src     = 'https://accounts.google.com/gsi/client';
+    script.async   = true;
+    script.defer   = true;
     document.body.appendChild(script);
-    return () => { document.body.removeChild(script); };
+    return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
-  // Handle Google response — auto creates account and goes to dashboard
+  // Handle Google response — decode on frontend
   const handleGoogleResponse = useCallback(async (response) => {
     setGoogleLoading(true);
     try {
+      const decoded = decodeGoogleToken(response.credential);
+      if (!decoded) throw new Error('Failed to decode Google token');
+
       const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/google-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: response.credential })
+        body: JSON.stringify({
+          email:       decoded.email,
+          fullname:    decoded.name,
+          google_id:   decoded.sub,
+          profile_pic: decoded.picture
+        })
       });
       const data = await res.json();
 
@@ -160,8 +184,9 @@ const SignUpForm = () => {
       } else {
         setErrors(p => ({ ...p, general: data.message || 'Google sign-up failed.' }));
       }
-    } catch {
-      setErrors(p => ({ ...p, general: 'Connection error. Please try again.' }));
+    } catch (err) {
+      console.error('Google auth error:', err);
+      setErrors(p => ({ ...p, general: 'Google sign-up failed. Please try again.' }));
     } finally {
       setGoogleLoading(false);
     }
@@ -176,13 +201,23 @@ const SignUpForm = () => {
         });
       }
     };
-    const t = setTimeout(init, 1000);
+    const t = setTimeout(init, 1500);
     return () => clearTimeout(t);
   }, [handleGoogleResponse]);
 
   const handleGoogleClick = () => {
-    if (window.google) window.google.accounts.id.prompt();
-    else setErrors(p => ({ ...p, general: 'Google Sign-In is loading. Please try again.' }));
+    if (window.google) {
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          window.google.accounts.id.renderButton(
+            document.getElementById('google-btn-fallback-signup'),
+            { theme: 'outline', size: 'large', width: 400 }
+          );
+        }
+      });
+    } else {
+      setErrors(p => ({ ...p, general: 'Google Sign-In is loading. Please try again.' }));
+    }
   };
 
   const handleChange = (e) => {
@@ -223,16 +258,25 @@ const SignUpForm = () => {
         })
       });
       const data = await response.json();
-      if (data.success) { setRegisteredEmail(formData.email.trim().toLowerCase()); setShowVerifyScreen(true); }
-      else setErrors(p => ({ ...p, general: data.message || 'Signup failed. Please try again.' }));
-    } catch { setErrors(p => ({ ...p, general: 'Could not connect to server. Please try again.' })); }
-    finally { clearTimeout(wakeTimer); setIsLoading(false); setServerWaking(false); }
+      if (data.success) {
+        setRegisteredEmail(formData.email.trim().toLowerCase());
+        setShowVerifyScreen(true);
+      } else {
+        setErrors(p => ({ ...p, general: data.message || 'Signup failed. Please try again.' }));
+      }
+    } catch {
+      setErrors(p => ({ ...p, general: 'Could not connect to server. Please try again.' }));
+    } finally {
+      clearTimeout(wakeTimer);
+      setIsLoading(false);
+      setServerWaking(false);
+    }
   };
 
   const handleResend = async () => {
     setResending(true);
     try {
-      const res = await fetch('https://hostel-backend-39y0.onrender.com/api/resend-verification', {
+      const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/resend-verification', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: registeredEmail })
       });
@@ -258,7 +302,7 @@ const SignUpForm = () => {
           <p className="text-slate-500 mt-1 text-sm">Join HostelHub — it only takes a minute</p>
         </div>
 
-        {/* ── GOOGLE SIGN-UP BUTTON ── */}
+        {/* Google Sign-Up */}
         <button onClick={handleGoogleClick} disabled={googleLoading}
           className="w-full flex items-center justify-center gap-3 border-2 border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-xl transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
           {googleLoading
@@ -266,6 +310,7 @@ const SignUpForm = () => {
             : <><GoogleIcon/> Continue with Google</>
           }
         </button>
+        <div id="google-btn-fallback-signup" className="flex justify-center"/>
 
         {/* Divider */}
         <div className="flex items-center gap-3">
