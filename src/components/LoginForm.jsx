@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 const GOOGLE_CLIENT_ID = '798719233864-4qak09a08b2js5n4e80h6ktus6am0fd1.apps.googleusercontent.com';
 
-// ─── GOOGLE BUTTON ────────────────────────────────────────────────────────────
+// ─── GOOGLE ICON ──────────────────────────────────────────────────────────────
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24">
     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -13,6 +13,22 @@ const GoogleIcon = () => (
     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
   </svg>
 );
+
+// ─── DECODE GOOGLE JWT (no library needed) ────────────────────────────────────
+const decodeGoogleToken = (token) => {
+  try {
+    const base64Url   = token.split('.')[1];
+    const base64      = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64).split('').map(c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
 
 // ─── WAKE-UP BANNER ───────────────────────────────────────────────────────────
 const WakeUpBanner = ({ visible }) => {
@@ -66,13 +82,13 @@ const ForgotPasswordModal = ({ onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose}/>
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in duration-200">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-all"><X size={18}/></button>
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100"><X size={18}/></button>
         {sent ? (
           <div className="text-center py-4 space-y-4">
             <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto"><CheckCircle size={28} className="text-green-600"/></div>
             <div>
               <h3 className="text-lg font-bold text-slate-800">Check your email</h3>
-              <p className="text-sm text-slate-500 mt-2 leading-relaxed">We sent a reset link to <strong>{email}</strong>. It expires in 30 minutes.</p>
+              <p className="text-sm text-slate-500 mt-2 leading-relaxed">We sent a reset link to <strong>{email}</strong>. It expires in 30 minutes. Also check your spam folder.</p>
             </div>
             <button onClick={onClose} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all">Done</button>
           </div>
@@ -126,7 +142,7 @@ const NotVerifiedBanner = ({ email, onClose }) => {
         <Mail size={18} className="text-amber-500 shrink-0 mt-0.5"/>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-amber-700">Email not verified</p>
-          <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">Check your inbox for the verification link sent to <strong>{email}</strong>.</p>
+          <p className="text-xs text-amber-600 mt-0.5 leading-relaxed">Check your inbox for the verification link sent to <strong>{email}</strong>. Also check spam.</p>
           {resent ? (
             <p className="flex items-center gap-1 text-xs text-green-600 font-bold mt-2"><CheckCircle size={12}/> Verification email resent!</p>
           ) : (
@@ -156,30 +172,39 @@ const LoginForm = ({ setUserRole, setUserName }) => {
   const [password, setPassword] = useState('');
   const [errors, setErrors]     = useState({ email: '', password: '', general: '' });
 
+  // Pre-fill remembered email
   useEffect(() => {
     const saved = localStorage.getItem('rememberedEmail');
     if (saved) { setEmail(saved); setRememberMe(true); }
   }, []);
 
-  // ── Load Google Identity Services script ──
+  // Load Google Identity Services script
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src   = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
+    const script   = document.createElement('script');
+    script.src     = 'https://accounts.google.com/gsi/client';
+    script.async   = true;
+    script.defer   = true;
     document.body.appendChild(script);
-    return () => { document.body.removeChild(script); };
+    return () => { if (document.body.contains(script)) document.body.removeChild(script); };
   }, []);
 
-  // ── Handle Google credential response ──
+  // ── Handle Google credential — decode on frontend, send info to Flask ──
   const handleGoogleResponse = useCallback(async (response) => {
     setGoogleLoading(true);
     setErrors({ email: '', password: '', general: '' });
     try {
+      const decoded = decodeGoogleToken(response.credential);
+      if (!decoded) throw new Error('Failed to decode Google token');
+
       const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/google-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: response.credential })
+        body: JSON.stringify({
+          email:       decoded.email,
+          fullname:    decoded.name,
+          google_id:   decoded.sub,
+          profile_pic: decoded.picture
+        })
       });
       const data = await res.json();
 
@@ -193,16 +218,17 @@ const LoginForm = ({ setUserRole, setUserName }) => {
       } else {
         setErrors(p => ({ ...p, general: data.message || 'Google sign-in failed.' }));
       }
-    } catch {
-      setErrors(p => ({ ...p, general: 'Connection error. Please try again.' }));
+    } catch (err) {
+      console.error('Google auth error:', err);
+      setErrors(p => ({ ...p, general: 'Google sign-in failed. Please try again.' }));
     } finally {
       setGoogleLoading(false);
     }
   }, [navigate, setUserRole, setUserName]);
 
-  // ── Initialise Google One Tap ──
+  // Initialise Google One Tap
   useEffect(() => {
-    const initGoogle = () => {
+    const init = () => {
       if (window.google) {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
@@ -210,14 +236,21 @@ const LoginForm = ({ setUserRole, setUserName }) => {
         });
       }
     };
-    const timer = setTimeout(initGoogle, 1000);
-    return () => clearTimeout(timer);
+    const t = setTimeout(init, 1500);
+    return () => clearTimeout(t);
   }, [handleGoogleResponse]);
 
-  // ── Trigger Google popup ──
   const handleGoogleClick = () => {
     if (window.google) {
-      window.google.accounts.id.prompt();
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          // Fallback — render button
+          window.google.accounts.id.renderButton(
+            document.getElementById('google-btn-fallback'),
+            { theme: 'outline', size: 'large', width: 400 }
+          );
+        }
+      });
     } else {
       setErrors(p => ({ ...p, general: 'Google Sign-In is loading. Please try again in a moment.' }));
     }
@@ -290,15 +323,16 @@ const LoginForm = ({ setUserRole, setUserName }) => {
             <p className="text-slate-500 mt-1 text-sm">Log in to your hostel portal</p>
           </div>
 
-          {/* ── GOOGLE SIGN-IN BUTTON ── */}
+          {/* Google Sign-In */}
           <button onClick={handleGoogleClick} disabled={googleLoading}
             className="w-full flex items-center justify-center gap-3 border-2 border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-xl transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed">
-            {googleLoading ? (
-              <><Loader2 size={18} className="animate-spin text-blue-500"/> Signing in with Google...</>
-            ) : (
-              <><GoogleIcon/> Continue with Google</>
-            )}
+            {googleLoading
+              ? <><Loader2 size={18} className="animate-spin text-blue-500"/> Signing in with Google...</>
+              : <><GoogleIcon/> Continue with Google</>
+            }
           </button>
+          {/* Fallback Google button container */}
+          <div id="google-btn-fallback" className="flex justify-center"/>
 
           {/* Divider */}
           <div className="flex items-center gap-3">
