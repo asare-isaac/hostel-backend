@@ -4,8 +4,6 @@ from flask_cors import CORS
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from datetime import datetime
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
 import os
 import cloudinary
 import cloudinary.uploader
@@ -24,7 +22,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SECRET_KEY']    = os.environ.get('SECRET_KEY', 'hostel-secret-key-2024')
 
-# --- FLASK-MAIL ---
+# --- FLASK-MAIL (port 465 + SSL — works on Render free tier) ---
 app.config['MAIL_SERVER']         = 'smtp.gmail.com'
 app.config['MAIL_PORT']           = 465
 app.config['MAIL_USE_TLS']        = False
@@ -33,8 +31,7 @@ app.config['MAIL_USERNAME']       = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD']       = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 
-FRONTEND_URL    = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
-GOOGLE_CLIENT_ID = '798719233864-4qak09a08b2js5n4e80h6ktus6am0fd1.apps.googleusercontent.com'
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 
 # --- CLOUDINARY ---
 cloudinary.config(
@@ -58,10 +55,10 @@ class User(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
     fullname      = db.Column(db.String(100), nullable=False)
     email         = db.Column(db.String(100), unique=True, nullable=False)
-    password      = db.Column(db.String(255), nullable=True)  # nullable for Google users
+    password      = db.Column(db.String(255), nullable=True)
     role          = db.Column(db.String(20), default='student')
     is_verified   = db.Column(db.Boolean, default=False)
-    auth_provider = db.Column(db.String(20), default='email')  # 'email' or 'google'
+    auth_provider = db.Column(db.String(20), default='email')
     google_id     = db.Column(db.String(100), nullable=True)
     profile_pic   = db.Column(db.String(500), nullable=True)
 
@@ -132,35 +129,41 @@ with app.app_context():
         db.session.commit()
         print("Seeded: 12×Block A (4-bed), 18×Block B (2-bed), 6×Block C (3-bed)")
 
-# --- HELPER ---
+# --- HELPER: send verification email ---
 def send_verification_email(user):
-    token      = s.dumps(user.email, salt='email-verify-salt')
-    verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
-    msg        = Message(subject="HostelHub — Verify Your Email", recipients=[user.email])
-    msg.html   = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
-        <div style="text-align: center; margin-bottom: 24px;">
-            <h1 style="color: #1e40af; font-size: 24px; margin: 0;">HostelHub</h1>
-            <p style="color: #64748b; font-size: 13px; margin-top: 4px;">University of Mines & Technology</p>
-        </div>
-        <div style="background: white; border-radius: 12px; padding: 28px; border: 1px solid #e2e8f0;">
-            <h2 style="color: #1e293b; font-size: 18px; margin-top: 0;">Verify Your Email Address</h2>
-            <p style="color: #475569; font-size: 14px; line-height: 1.6;">
-                Hi <strong>{user.fullname}</strong>,<br><br>
-                Welcome to HostelHub! Please verify your email address to activate your account.
-            </p>
-            <div style="text-align: center; margin: 28px 0;">
-                <a href="{verify_url}" style="background: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
-                    Verify My Email
-                </a>
+    try:
+        token      = s.dumps(user.email, salt='email-verify-salt')
+        verify_url = f"{FRONTEND_URL}/verify-email?token={token}"
+        msg        = Message(subject="HostelHub — Verify Your Email", recipients=[user.email])
+        msg.html   = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
+            <div style="text-align: center; margin-bottom: 24px;">
+                <h1 style="color: #1e40af; font-size: 24px; margin: 0;">HostelHub</h1>
+                <p style="color: #64748b; font-size: 13px; margin-top: 4px;">University of Mines & Technology</p>
             </div>
-            <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-bottom: 0;">
-                This link expires in <strong>24 hours</strong>.
-            </p>
+            <div style="background: white; border-radius: 12px; padding: 28px; border: 1px solid #e2e8f0;">
+                <h2 style="color: #1e293b; font-size: 18px; margin-top: 0;">Verify Your Email Address</h2>
+                <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+                    Hi <strong>{user.fullname}</strong>,<br><br>
+                    Welcome to HostelHub! Please verify your email address to activate your account.
+                </p>
+                <div style="text-align: center; margin: 28px 0;">
+                    <a href="{verify_url}" style="background: #2563eb; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; display: inline-block;">
+                        Verify My Email
+                    </a>
+                </div>
+                <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-bottom: 0;">
+                    This link expires in <strong>24 hours</strong>.
+                </p>
+            </div>
         </div>
-    </div>
-    """
-    mail.send(msg)
+        """
+        mail.send(msg)
+        print(f"Verification email sent to {user.email}")
+        return True
+    except Exception as e:
+        print(f"Mail send error: {str(e)}")
+        return False
 
 # --- AUTH ROUTES ---
 
@@ -184,16 +187,17 @@ def signup():
         db.session.add(new_user)
         db.session.commit()
 
-        try:
-            send_verification_email(new_user)
-        except Exception as mail_error:
-            print(f"Mail error: {mail_error}")
-            return jsonify({"success": True, "message": "Account created but verification email failed. Contact admin.", "email_sent": False}), 201
+        email_sent = send_verification_email(new_user)
 
-        return jsonify({"success": True, "message": "Account created! Please check your email to verify.", "email_sent": True}), 201
+        return jsonify({
+            "success":    True,
+            "message":    "Account created! Please check your email to verify." if email_sent else "Account created! Verification email could not be sent — contact admin.",
+            "email_sent": email_sent
+        }), 201
 
     except Exception as e:
         db.session.rollback()
+        print(f"Signup error: {str(e)}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -207,73 +211,54 @@ def login():
         if not user or user.password != data.get('password'):
             return jsonify({"success": False, "message": "Invalid email or password."}), 401
 
-        # Block Google-only accounts from password login
         if user.auth_provider == 'google':
             return jsonify({"success": False, "message": "This account uses Google Sign-In. Please click 'Continue with Google'."}), 403
 
         if not user.is_verified:
             return jsonify({
-                "success": False,
-                "message": "Please verify your email before logging in.",
+                "success":      False,
+                "message":      "Please verify your email before logging in. Check your inbox.",
                 "not_verified": True,
-                "email": user.email
+                "email":        user.email
             }), 403
 
         return jsonify({
-            "success":    True,
-            "user_name":  user.fullname,
-            "role":       user.role,
+            "success":     True,
+            "user_name":   user.fullname,
+            "role":        user.role,
             "profile_pic": user.profile_pic
         }), 200
 
     except Exception as e:
+        print(f"Login error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
-# --- GOOGLE SIGN-IN ROUTE ---
+# --- GOOGLE SIGN-IN (token decoded on frontend, no outbound request needed) ---
 @app.route('/api/google-auth', methods=['POST'])
 def google_auth():
     try:
-        token     = request.json.get('token')
-        if not token:
-            return jsonify({"success": False, "message": "No token provided"}), 400
+        data        = request.json
+        email       = data.get('email', '').strip().lower()
+        fullname    = data.get('fullname', '')
+        google_id   = data.get('google_id', '')
+        profile_pic = data.get('profile_pic', '')
 
-        # Verify the Google token
-        try:
-            id_info = id_token.verify_oauth2_token(
-                token,
-                google_requests.Request(),
-                GOOGLE_CLIENT_ID
-            )
-        except ValueError as e:
-            print(f"Google token verification failed: {e}")
-            return jsonify({"success": False, "message": "Invalid Google token."}), 401
+        if not email:
+            return jsonify({"success": False, "message": "No email provided"}), 400
 
-        # Extract user info from Google
-        google_id   = id_info.get('sub')
-        email       = id_info.get('email', '').lower()
-        fullname    = id_info.get('name', '')
-        profile_pic = id_info.get('picture', '')
-        email_verified = id_info.get('email_verified', False)
-
-        if not email_verified:
-            return jsonify({"success": False, "message": "Google account email is not verified."}), 400
-
-        # Check if user already exists
         user = User.query.filter_by(email=email).first()
 
         if user:
-            # Existing user — update their Google info and log them in
-            user.google_id    = google_id
-            user.profile_pic  = profile_pic
-            user.is_verified  = True  # Google already verified the email
+            # Existing user — update Google info and log in
+            user.google_id   = google_id
+            user.profile_pic = profile_pic
+            user.is_verified = True
             if user.auth_provider == 'email':
-                # They registered with email before — link their Google account
                 user.auth_provider = 'both'
             db.session.commit()
         else:
             # New user — create account automatically
-            # Google has already verified their email so is_verified = True
             user = User(
                 fullname=fullname,
                 email=email,
@@ -288,11 +273,10 @@ def google_auth():
             db.session.commit()
 
         return jsonify({
-            "success":    True,
-            "user_name":  user.fullname,
-            "role":       user.role,
-            "profile_pic": user.profile_pic,
-            "is_new_user": user.auth_provider == 'google'
+            "success":     True,
+            "user_name":   user.fullname,
+            "role":        user.role,
+            "profile_pic": user.profile_pic
         }), 200
 
     except Exception as e:
@@ -335,8 +319,11 @@ def resend_verification():
             return jsonify({"success": False, "message": "No account found with that email."}), 404
         if user.is_verified:
             return jsonify({"success": False, "message": "This email is already verified."}), 400
-        send_verification_email(user)
-        return jsonify({"success": True, "message": "Verification email resent!"}), 200
+        sent = send_verification_email(user)
+        if sent:
+            return jsonify({"success": True, "message": "Verification email resent!"}), 200
+        else:
+            return jsonify({"success": False, "message": "Failed to send email. Please try again."}), 500
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -347,6 +334,12 @@ def forgot_password():
         email = request.json.get('email', '').strip().lower()
         user  = User.query.filter_by(email=email).first()
 
+        print(f"Forgot password for: {email}")
+        print(f"User found: {user is not None}")
+        if user:
+            print(f"Is verified: {user.is_verified}")
+            print(f"Auth provider: {user.auth_provider}")
+
         if user and user.is_verified and user.auth_provider != 'google':
             token      = s.dumps(email, salt='password-reset-salt')
             reset_link = f"{FRONTEND_URL}/reset-password?token={token}"
@@ -354,10 +347,11 @@ def forgot_password():
             msg.html   = f"""
             <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f8fafc; border-radius: 12px;">
                 <div style="text-align: center; margin-bottom: 24px;">
-                    <h1 style="color: #1e40af;">HostelHub</h1>
+                    <h1 style="color: #1e40af; font-size: 24px; margin: 0;">HostelHub</h1>
+                    <p style="color: #64748b; font-size: 13px; margin-top: 4px;">University of Mines & Technology</p>
                 </div>
                 <div style="background: white; border-radius: 12px; padding: 28px; border: 1px solid #e2e8f0;">
-                    <h2 style="color: #1e293b;">Password Reset Request</h2>
+                    <h2 style="color: #1e293b; font-size: 18px; margin-top: 0;">Password Reset Request</h2>
                     <p style="color: #475569; font-size: 14px; line-height: 1.6;">
                         Hi <strong>{user.fullname}</strong>,<br><br>
                         Click the button below to reset your password. This link expires in 30 minutes.
@@ -367,14 +361,22 @@ def forgot_password():
                             Reset My Password
                         </a>
                     </div>
+                    <p style="color: #94a3b8; font-size: 12px; text-align: center; margin-bottom: 0;">
+                        This link expires in <strong>30 minutes</strong>. If you didn't request this, ignore this email.
+                    </p>
                 </div>
             </div>
             """
-            mail.send(msg)
+            try:
+                mail.send(msg)
+                print(f"Reset email sent to {email}")
+            except Exception as mail_err:
+                print(f"Reset email failed: {str(mail_err)}")
 
-        return jsonify({"success": True, "message": "If that email is registered, a reset link has been sent."}), 200
+        return jsonify({"success": True, "message": "If that email is registered and verified, a reset link has been sent."}), 200
 
     except Exception as e:
+        print(f"Forgot password error: {str(e)}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 
@@ -386,7 +388,7 @@ def reset_password():
         try:
             email = s.loads(token, salt='password-reset-salt', max_age=1800)
         except SignatureExpired:
-            return jsonify({"success": False, "message": "Reset link has expired."}), 400
+            return jsonify({"success": False, "message": "Reset link has expired. Please request a new one."}), 400
         except BadSignature:
             return jsonify({"success": False, "message": "Invalid reset link."}), 400
         user = User.query.filter_by(email=email).first()
@@ -420,7 +422,8 @@ def get_students():
         result = []
         for s in Student.query.all():
             result.append({
-                "id": s.id, "name": s.full_name,
+                "id":            s.id,
+                "name":          s.full_name,
                 "room":          s.room_assigned.room_number if s.room_assigned else "Unassigned",
                 "block":         s.room_assigned.block if s.room_assigned else "—",
                 "program":       s.program,
