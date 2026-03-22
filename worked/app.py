@@ -271,6 +271,23 @@ def delete_student_record(id):
 def serve_uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/api/rooms/<int:room_id>/occupants', methods=['GET'])
+def get_room_occupants(room_id):
+    try:
+        students = Student.query.filter_by(room_id=room_id).all()
+        result = []
+        for s in students:
+            result.append({
+                "id": s.id,
+                "name": s.full_name,
+                "course": s.course_name,
+                "phone": s.phone_number,
+                "status": s.payment_status
+            })
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
