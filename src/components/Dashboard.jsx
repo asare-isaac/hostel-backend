@@ -14,7 +14,7 @@ import blockC from '../assets/hero3.jpg';
 
 // ─── RING CHART COMPONENT ─────────────────────────────────────────────────────
 const RingChart = ({ percent, color, size = 80, stroke = 8 }) => {
-  const r    = (size - stroke) / 2;
+  const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ - (percent / 100) * circ;
   return (
@@ -34,12 +34,14 @@ const RingChart = ({ percent, color, size = 80, stroke = 8 }) => {
 // ─── FLOOR MAP ROOM CELL ──────────────────────────────────────────────────────
 const RoomCell = ({ room, onClick }) => {
   const pct = room.capacity > 0 ? (room.students / room.capacity) * 100 : 0;
-  const bg  = pct === 0   ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'
-            : pct < 100   ? 'bg-amber-50  border-amber-200  hover:border-amber-400'
-                          : 'bg-red-50    border-red-200    hover:border-red-400';
-  const dot = pct === 0   ? 'bg-emerald-500'
-            : pct < 100   ? 'bg-amber-500'
-                          : 'bg-red-500';
+  const bg =
+    pct === 0  ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400' :
+    pct < 100  ? 'bg-amber-50  border-amber-200  hover:border-amber-400'  :
+                 'bg-red-50    border-red-200    hover:border-red-400';
+  const dot =
+    pct === 0  ? 'bg-emerald-500' :
+    pct < 100  ? 'bg-amber-500'   :
+                 'bg-red-500';
   return (
     <button
       onClick={() => onClick(room)}
@@ -52,54 +54,30 @@ const RoomCell = ({ room, onClick }) => {
   );
 };
 
-// ─── RECEIPT IMAGE ────────────────────────────────────────────────────────────
-// Cloudinary URLs are full https:// links — just use them directly.
-const ReceiptImage = ({ url }) => {
-  const [errored, setErrored] = useState(false);
-
-  if (!url || errored) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-blue-50">
-        <AlertCircle className="text-blue-300 mb-2" size={32}/>
-        <p className="text-blue-400 text-sm font-medium italic">
-          {!url ? 'No receipt uploaded' : 'Image failed to load'}
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={url}
-      className="w-full h-full object-contain"
-      alt="Payment Receipt"
-      onError={() => setErrored(true)}
-    />
-  );
-};
-
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
 const Dashboard = ({ userRole, userName, onLogout }) => {
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [currentSlide, setCurrentSlide]       = useState(0);
-  const [activeTab, setActiveTab]             = useState('overview');
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [bookingSuccess, setBookingSuccess]   = useState(false);
-  const [selectedRoom, setSelectedRoom]       = useState(null);
-  const [searchTerm, setSearchTerm]           = useState('');
-  const [sidebarOpen, setSidebarOpen]         = useState(false);
-  const [activeBlock, setActiveBlock]         = useState('A');
-  const [ringsVisible, setRingsVisible]       = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState('');
 
-  const sidebarRef = useRef(null);
-  const blocksRef  = useRef(null);
+  // --- STATE ---
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [showReviewModal, setShowReviewModal]   = useState(false);
+  const [currentSlide, setCurrentSlide]         = useState(0);
+  const [activeTab, setActiveTab]               = useState('overview');
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [bookingSuccess, setBookingSuccess]     = useState(false);
+  const [selectedRoom, setSelectedRoom]         = useState(null);
+  const [searchTerm, setSearchTerm]             = useState('');
+  const [sidebarOpen, setSidebarOpen]           = useState(false);
+  const [activeBlock, setActiveBlock]           = useState('A');
+  const [ringsVisible, setRingsVisible]         = useState(false);
+  const [receiptLoading, setReceiptLoading]     = useState(false); // NEW: image loading state
+  const [receiptError, setReceiptError]         = useState(false); // NEW: image error state
 
   const [studentsList, setStudentsList] = useState([]);
   const [rooms, setRooms]               = useState([]);
 
-  // ── API ──
+  const sidebarRef = useRef(null);
+
+  // --- API ---
   const fetchRooms = async () => {
     try {
       const res  = await fetch('https://hostel-backend-39y0.onrender.com/api/rooms');
@@ -118,7 +96,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   useEffect(() => { fetchRooms(); fetchStudents(); }, []);
 
-  // ── Sidebar outside-click ──
+  // Sidebar outside-click close
   useEffect(() => {
     const h = (e) => {
       if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target))
@@ -126,15 +104,19 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     };
     document.addEventListener('mousedown', h);
     document.addEventListener('touchstart', h);
-    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('touchstart', h); };
+    return () => {
+      document.removeEventListener('mousedown', h);
+      document.removeEventListener('touchstart', h);
+    };
   }, [sidebarOpen]);
 
+  // Lock body scroll when sidebar open
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen]);
 
-  // ── Animate rings when blocks tab opens ──
+  // Animate rings when blocks tab opens
   useEffect(() => {
     if (activeTab === 'blocks') {
       setRingsVisible(false);
@@ -143,7 +125,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     }
   }, [activeTab]);
 
-  // ── Slideshow ──
+  // Slideshow auto-advance
   const hostelImages = [blockA, blockB, blockC];
   const nextSlide = () => setCurrentSlide(p => (p === 2 ? 0 : p + 1));
   const prevSlide = () => setCurrentSlide(p => (p === 0 ? 2 : p - 1));
@@ -154,11 +136,10 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
   const handleNavClick = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
 
-  // ── Booking ──
+  // --- BOOKING ---
   const handleOpenBooking = (room) => {
     setSelectedRoom(room);
     setBookingSuccess(false);
-    setUploadedFileName('');
     setShowBookingModal(true);
   };
 
@@ -167,19 +148,30 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     const fd = new FormData(e.target);
     fd.append('roomNumber', selectedRoom.number);
     try {
-      const res = await fetch('https://hostel-backend-39y0.onrender.com/api/book', { method: 'POST', body: fd });
+      const res = await fetch('https://hostel-backend-39y0.onrender.com/api/book', {
+        method: 'POST',
+        body: fd
+      });
       if (res.ok) {
         setBookingSuccess(true);
         fetchStudents();
         fetchRooms();
       } else {
-        const err = await res.json();
-        alert(err.error || 'Server error. Please try again.');
+        alert('Server error. Please try again.');
       }
-    } catch { alert('Connection failed.'); }
+    } catch {
+      alert('Connection failed. Please check your internet.');
+    }
   };
 
-  // ── Admin actions ──
+  // --- ADMIN ACTIONS ---
+  const handleOpenReview = (student) => {
+    setSelectedStudent(student);
+    setReceiptLoading(true);  // reset image state each time modal opens
+    setReceiptError(false);
+    setShowReviewModal(true);
+  };
+
   const handleAccept = async (id) => {
     try {
       const res = await fetch(`https://hostel-backend-39y0.onrender.com/api/accept-student/${id}`, { method: 'POST' });
@@ -188,7 +180,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         fetchRooms();
         setShowReviewModal(false);
         setSelectedStudent(null);
-        alert('Payment verified!');
+        alert('Verification Complete: Student access granted.');
       }
     } catch (e) { console.error(e); }
   };
@@ -205,8 +197,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     } catch (e) { console.error(e); }
   };
 
-  // ── Stats ──
-  // FIX: search by s.name and s.room (matching updated API response fields)
+  // --- STATS ---
   const filteredStudents = studentsList.filter(s =>
     s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.room?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -217,7 +208,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   const occupancyRate  = totalCapacity > 0 ? Math.round((occupiedBeds / totalCapacity) * 100) : 0;
   const pendingCount   = studentsList.filter(s => s.status === 'Pending').length;
 
-  // ── Block data derived from rooms ──
+  // --- BLOCK DATA ---
   const maleRooms   = rooms.filter(r => r.type === 'Male');
   const femaleRooms = rooms.filter(r => r.type === 'Female');
   const blockDefs   = {
@@ -225,14 +216,12 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
     B: { label: 'Block B', gender: 'Mixed',  color: '#8B5CF6', rooms: [...maleRooms.slice(6, 12), ...femaleRooms.slice(0, 6)] },
     C: { label: 'Block C', gender: 'Female', color: '#EC4899', rooms: femaleRooms.slice(6) },
   };
-
   const blockStats = (key) => {
-    const br    = blockDefs[key].rooms;
-    const cap   = br.reduce((a, r) => a + (r.capacity || 0), 0);
-    const occ   = br.reduce((a, r) => a + (r.students || 0), 0);
-    const pct   = cap > 0 ? Math.round((occ / cap) * 100) : 0;
-    const avail = br.filter(r => r.status !== 'Occupied').length;
-    return { cap, occ, pct, avail, total: br.length };
+    const br  = blockDefs[key].rooms;
+    const cap = br.reduce((a, r) => a + (r.capacity || 0), 0);
+    const occ = br.reduce((a, r) => a + (r.students || 0), 0);
+    const pct = cap > 0 ? Math.round((occ / cap) * 100) : 0;
+    return { cap, occ, pct, avail: br.filter(r => r.status !== 'Occupied').length, total: br.length };
   };
 
   const amenities = [
@@ -260,7 +249,10 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
 
-      {sidebarOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"/>}
+      {/* MOBILE BACKDROP */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden"/>
+      )}
 
       {/* SIDEBAR */}
       <aside
@@ -278,6 +270,8 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             <X size={20}/>
           </button>
         </div>
+
+        {/* Mobile user pill */}
         <div className="md:hidden px-4 py-4 border-b border-slate-800">
           <div className="flex items-center gap-3 bg-slate-800 rounded-xl px-4 py-3">
             <img src={profileImage} className="h-9 w-9 rounded-full border-2 border-blue-500 shrink-0" alt="profile"/>
@@ -287,16 +281,18 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </div>
           </div>
         </div>
+
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {[
-            { icon: <LayoutDashboard size={20}/>, label: 'Overview',        tab: 'overview' },
-            { icon: <Bed size={20}/>,             label: 'Room Allotment',  tab: 'rooms' },
-            { icon: <Users size={20}/>,           label: 'Students list',   tab: 'students' },
-            { icon: <MapPin size={20}/>,          label: 'Blocks & Layout', tab: 'blocks' },
+            { icon: <LayoutDashboard size={20}/>, label: 'Overview',        tab: 'overview'  },
+            { icon: <Bed size={20}/>,             label: 'Room Allotment',  tab: 'rooms'     },
+            { icon: <Users size={20}/>,           label: 'Students list',   tab: 'students'  },
+            { icon: <MapPin size={20}/>,          label: 'Blocks & Layout', tab: 'blocks'    },
           ].map(({ icon, label, tab }) => (
             <NavItem key={tab} icon={icon} label={label} active={activeTab === tab} onClick={() => handleNavClick(tab)}/>
           ))}
         </nav>
+
         <div className="p-4 border-t border-slate-800">
           <button onClick={onLogout} className="flex items-center gap-3 text-slate-400 hover:text-white hover:bg-slate-800 w-full px-4 py-3 rounded-xl text-sm font-bold uppercase transition-all">
             <LogOut size={20}/> <span>Logout</span>
@@ -304,12 +300,13 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
       </aside>
 
-      {/* MAIN */}
+      {/* MAIN AREA */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
         {/* HEADER */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0 gap-3">
           <div className="flex items-center gap-3 min-w-0">
+            {/* Hamburger */}
             <button
               onClick={() => setSidebarOpen(true)}
               className="md:hidden flex flex-col justify-center items-center w-10 h-10 rounded-xl bg-slate-900 hover:bg-slate-700 active:scale-95 transition-all shrink-0 gap-[5px] group"
@@ -321,6 +318,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
             </button>
             <h1 className="text-base md:text-xl font-bold text-slate-800 capitalize tracking-tight truncate">{activeTab}</h1>
           </div>
+
           <div className="flex items-center gap-3 md:gap-6 shrink-0">
             <button onClick={() => { fetchRooms(); fetchStudents(); }} className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-full transition-all group">
               <RefreshCw size={18} className="group-active:rotate-180 transition-transform duration-500"/>
@@ -349,9 +347,9 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
           {activeTab === 'overview' && (
             <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
-                <StatCard title="Total Students" value={totalStudents}  icon={<Users className="text-blue-600"/>}       trend="+Live"/>
-                <StatCard title="Occupied Beds"  value={occupiedBeds}   icon={<Bed className="text-green-600"/>}        trend={`${occupancyRate}% Full`}/>
-                <StatCard title="Pending Review" value={pendingCount}   icon={<CreditCard className="text-amber-600"/>} trend="Action Required"/>
+                <StatCard title="Total Students" value={totalStudents}  icon={<Users className="text-blue-600"/>}        trend="+Live"/>
+                <StatCard title="Occupied Beds"  value={occupiedBeds}   icon={<Bed className="text-green-600"/>}         trend={`${occupancyRate}% Full`}/>
+                <StatCard title="Pending Review" value={pendingCount}   icon={<CreditCard className="text-amber-600"/>}  trend="Action Required"/>
                 <StatCard title="Health Score"   value="98%"            icon={<ShieldCheck className="text-emerald-600"/>} trend="Safe"/>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -367,8 +365,8 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <div className="bg-white p-5 md:p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <h3 className="text-base md:text-lg font-bold text-slate-800 mb-4">System Status</h3>
                   <div className="space-y-4">
-                    <ActivityItem label="Live Database"      desc="Connected to Neon PostgreSQL" time="Status: Online"/>
-                    <ActivityItem label="Cloudinary Storage" desc="Receipts stored permanently"  time="Status: Active"/>
+                    <ActivityItem label="Live Database"      desc="Connected to Neon PostgreSQL"  time="Status: Online"/>
+                    <ActivityItem label="Cloudinary Storage" desc="Receipts stored permanently"   time="Status: Active"/>
                   </div>
                 </div>
               </div>
@@ -394,12 +392,14 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                         <p className="font-bold text-slate-800 text-sm">{s.name}</p>
                         <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">{s.course}</p>
                       </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{s.status}</span>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                        {s.status}
+                      </span>
                     </div>
                     <p className="text-xs text-slate-500 mb-3">Room: <span className="font-bold text-slate-700">{s.room}</span></p>
                     <div className="flex justify-end">
                       {userRole === 'admin' && s.status === 'Pending' && (
-                        <button onClick={() => { setSelectedStudent(s); setShowReviewModal(true); }}
+                        <button onClick={() => handleOpenReview(s)}
                           className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold shadow transition-all animate-pulse">
                           <Search size={13}/> Review Receipt
                         </button>
@@ -434,12 +434,14 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600 font-bold">{s.room}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold inline-block border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{s.status}</span>
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold inline-block border ${s.status === 'Paid' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                            {s.status}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
                             {userRole === 'admin' && s.status === 'Pending' && (
-                              <button onClick={() => { setSelectedStudent(s); setShowReviewModal(true); }}
+                              <button onClick={() => handleOpenReview(s)}
                                 className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-[10px] font-bold shadow-lg transition-all animate-pulse">
                                 <Search size={14}/> Review Receipt
                               </button>
@@ -468,7 +470,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
 
           {/* ── BLOCKS & LAYOUT ── */}
           {activeTab === 'blocks' && (
-            <div className="space-y-8 animate-in fade-in duration-500" ref={blocksRef}>
+            <div className="space-y-8 animate-in fade-in duration-500">
 
               {/* Hero slideshow */}
               <div className="relative w-full h-56 md:h-80 rounded-3xl overflow-hidden shadow-xl bg-slate-900">
@@ -485,7 +487,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <div className="absolute bottom-5 right-5 flex gap-2">
                   {[0,1,2].map(i => (
                     <button key={i} onClick={() => setCurrentSlide(i)}
-                      className={`w-2 h-2 rounded-full transition-all duration-300 ${i === currentSlide ? 'bg-white w-6' : 'bg-white/50'}`}/>
+                      className={`h-2 rounded-full transition-all duration-300 ${i === currentSlide ? 'bg-white w-6' : 'bg-white/50 w-2'}`}/>
                   ))}
                 </div>
               </div>
@@ -535,7 +537,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
               </div>
 
-              {/* Interactive Floor Map */}
+              {/* Interactive floor map */}
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 md:p-6">
                 <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                   <div>
@@ -601,30 +603,73 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                   ))}
                 </div>
               </div>
+
             </div>
           )}
         </main>
       </div>
 
-      {/* MODAL: ADMIN REVIEW */}
+      {/* ── MODAL: ADMIN REVIEW ── */}
       {showReviewModal && selectedStudent && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowReviewModal(false)}/>
           <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8 animate-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-xl text-slate-800">Verify Allotment</h3>
-              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors"><X size={18}/></button>
+              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full transition-colors">
+                <X size={18}/>
+              </button>
             </div>
+
             <div className="space-y-5">
-              {/* FIX: Uses ReceiptImage component — Cloudinary URL is a full https link, used directly */}
-              <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 overflow-hidden">
-                <ReceiptImage url={selectedStudent.receipt}/>
+              {/* ── RECEIPT IMAGE — Cloudinary URL used directly ── */}
+              <div className="aspect-video bg-blue-50 rounded-2xl border-2 border-dashed border-blue-200 relative overflow-hidden flex items-center justify-center">
+
+                {selectedStudent?.receipt ? (
+                  <>
+                    {/* Loading spinner shown while image fetches */}
+                    {receiptLoading && !receiptError && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-50 z-10">
+                        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3"/>
+                        <p className="text-blue-400 text-xs font-medium">Loading receipt...</p>
+                      </div>
+                    )}
+
+                    {/* Error state */}
+                    {receiptError && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-50 z-10">
+                        <AlertCircle className="text-red-400 mb-2" size={32}/>
+                        <p className="text-red-400 text-sm font-medium">Failed to load image</p>
+                        <p className="text-slate-400 text-xs mt-1">Check Cloudinary credentials</p>
+                      </div>
+                    )}
+
+                    {/* THE FIX: src is the direct Cloudinary https:// URL — no manipulation */}
+                    <img
+                      src={selectedStudent.receipt}
+                      className={`w-full h-full object-contain transition-opacity duration-300 ${receiptLoading || receiptError ? 'opacity-0' : 'opacity-100'}`}
+                      alt="Student Payment Receipt"
+                      onLoad={() => setReceiptLoading(false)}
+                      onError={() => { setReceiptLoading(false); setReceiptError(true); }}
+                    />
+                  </>
+                ) : (
+                  /* receipt field is null — booking was made before Cloudinary fix */
+                  <div className="flex flex-col items-center justify-center">
+                    <AlertCircle className="text-blue-300 mb-2" size={32}/>
+                    <p className="text-blue-400 text-sm font-medium italic">No receipt uploaded</p>
+                    <p className="text-slate-400 text-xs mt-1">Student must re-submit booking</p>
+                  </div>
+                )}
               </div>
+
+              {/* Student info */}
               <div className="bg-slate-50 p-4 rounded-2xl text-center">
                 <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Student</p>
                 <h4 className="text-lg font-bold text-slate-700">{selectedStudent.name}</h4>
                 <p className="text-xs text-slate-400 mt-1">Room: {selectedStudent.room}</p>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <button onClick={() => handleDecline(selectedStudent.id)} className="py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-all">Decline</button>
                 <button onClick={() => handleAccept(selectedStudent.id)} className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg transition-all">Verify Now</button>
@@ -634,7 +679,7 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
         </div>
       )}
 
-      {/* MODAL: BOOKING */}
+      {/* ── MODAL: BOOKING FORM ── */}
       {showBookingModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}/>
@@ -646,8 +691,8 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 </div>
                 <h2 className="text-2xl font-bold text-slate-800">Booking Submitted!</h2>
                 <p className="text-slate-500 text-sm leading-relaxed">
-                  Your receipt has been uploaded to cloud storage for Room <strong>{selectedRoom?.number}</strong>.<br/>
-                  You will be notified once the warden verifies it.
+                  Your receipt has been uploaded and sent to the warden for Room <strong>{selectedRoom?.number}</strong>.<br/>
+                  You will be notified once your payment is verified.
                 </p>
                 <button onClick={() => { setShowBookingModal(false); setBookingSuccess(false); }}
                   className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all uppercase text-xs tracking-widest">
@@ -660,27 +705,11 @@ const Dashboard = ({ userRole, userName, onLogout }) => {
                 <p className="text-slate-400 text-sm mb-6">Upload your payment receipt to complete booking.</p>
                 <form className="space-y-5" onSubmit={handleBookingSubmit}>
                   <div className="relative border-2 border-dashed border-blue-200 rounded-3xl p-7 bg-blue-50/40 text-center">
-                    <input
-                      name="receipt"
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                      required
-                      onChange={e => setUploadedFileName(e.target.files[0]?.name || '')}
-                    />
+                    <input name="receipt" type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" required/>
                     <div className="flex flex-col items-center">
-                      <UploadCloud className={`mb-2 ${uploadedFileName ? 'text-green-500' : 'text-blue-500'}`} size={28}/>
-                      {uploadedFileName ? (
-                        <>
-                          <p className="text-sm font-bold text-green-700">File selected ✓</p>
-                          <p className="text-xs text-slate-400 mt-1 truncate max-w-full px-2">{uploadedFileName}</p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
-                          <p className="text-xs text-slate-400 mt-1">JPG, PNG, PDF supported</p>
-                        </>
-                      )}
+                      <UploadCloud className="text-blue-500 mb-2" size={28}/>
+                      <p className="text-sm font-bold text-slate-700">Upload Payment Receipt</p>
+                      <p className="text-xs text-slate-400 mt-1">JPG, PNG supported — saved to Cloudinary</p>
                     </div>
                   </div>
                   <input name="studentName" type="text" className="w-full px-5 py-4 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" placeholder="Full Name" required/>
