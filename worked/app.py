@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from datetime import datetime
 import os
 import cloudinary
 import cloudinary.uploader
@@ -43,21 +44,21 @@ class User(db.Model):
 
 class Room(db.Model):
     __tablename__ = 'rooms'
-    id          = db.Column(db.Integer, primary_key=True)
-    room_number = db.Column(db.String(10), unique=True)
-    room_type   = db.Column(db.String(20))   # Block A / Block B / Block C
-    block       = db.Column(db.String(5))    # A / B / C
-    status      = db.Column(db.String(20), default='Available')
-    max_capacity= db.Column(db.Integer)
-    students    = db.relationship('Student', backref='room_assigned', lazy=True)
+    id           = db.Column(db.Integer, primary_key=True)
+    room_number  = db.Column(db.String(10), unique=True)
+    room_type    = db.Column(db.String(20))
+    block        = db.Column(db.String(5))
+    status       = db.Column(db.String(20), default='Available')
+    max_capacity = db.Column(db.Integer)
+    students     = db.relationship('Student', backref='room_assigned', lazy=True)
 
 class Student(db.Model):
     __tablename__ = 'students'
     id             = db.Column(db.Integer, primary_key=True)
     full_name      = db.Column(db.String(100))
     phone_number   = db.Column(db.String(15))
-    program        = db.Column(db.String(150))   # NEW: student's program/course
-    academic_year  = db.Column(db.String(10))    # NEW: e.g. 2023, 2024
+    program        = db.Column(db.String(150))
+    academic_year  = db.Column(db.String(10))
     payment_status = db.Column(db.String(20), default='Pending')
     receipt_url    = db.Column(db.String(500))
     room_id        = db.Column(db.Integer, db.ForeignKey('rooms.id'))
@@ -70,11 +71,21 @@ class Receipt(db.Model):
     receipt_url   = db.Column(db.String(500), nullable=False)
     status        = db.Column(db.String(20), default='Pending')
 
+class Complaint(db.Model):
+    __tablename__ = 'complaints'
+    id           = db.Column(db.Integer, primary_key=True)
+    student_name = db.Column(db.String(100), nullable=False)
+    room_number  = db.Column(db.String(10))
+    message      = db.Column(db.Text, nullable=False)
+    status       = db.Column(db.String(20), default='Open')   # Open, Replied, Resolved
+    admin_reply  = db.Column(db.Text, nullable=True)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    replied_at   = db.Column(db.DateTime, nullable=True)
+
 # --- DATABASE INITIALIZATION ---
 with app.app_context():
     db.create_all()
 
-    # Seed admin
     if not User.query.filter_by(email='admin@hostel.com').first():
         db.session.add(User(
             fullname="System Admin",
@@ -85,39 +96,16 @@ with app.app_context():
         db.session.commit()
         print("Admin created!")
 
-    # Seed rooms — clear and re-seed if block column is missing data
     if not Room.query.first():
         print("Seeding rooms...")
-
-        # Block A — 4-person rooms, 12 rooms (A1–A12)
         for i in range(1, 13):
-            db.session.add(Room(
-                room_number=f"A{i}",
-                room_type="Block A",
-                block="A",
-                max_capacity=4
-            ))
-
-        # Block B — 2-person rooms, 18 rooms (B1–B18)
+            db.session.add(Room(room_number=f"A{i}", room_type="Block A", block="A", max_capacity=4))
         for i in range(1, 19):
-            db.session.add(Room(
-                room_number=f"B{i}",
-                room_type="Block B",
-                block="B",
-                max_capacity=2
-            ))
-
-        # Block C — 3-person rooms, 6 rooms (C1–C6)
+            db.session.add(Room(room_number=f"B{i}", room_type="Block B", block="B", max_capacity=2))
         for i in range(1, 7):
-            db.session.add(Room(
-                room_number=f"C{i}",
-                room_type="Block C",
-                block="C",
-                max_capacity=3
-            ))
-
+            db.session.add(Room(room_number=f"C{i}", room_type="Block C", block="C", max_capacity=3))
         db.session.commit()
-        print("Rooms seeded: 12×Block A (4-bed), 18×Block B (2-bed), 6×Block C (3-bed)")
+        print("Seeded: 12×Block A (4-bed), 18×Block B (2-bed), 6×Block C (3-bed)")
 
 # --- ROUTES ---
 
@@ -181,8 +169,9 @@ def get_students():
                 "name":          s.full_name,
                 "room":          s.room_assigned.room_number if s.room_assigned else "Unassigned",
                 "block":         s.room_assigned.block if s.room_assigned else "—",
-                "program":       s.program,         # NEW
-                "academic_year": s.academic_year,   # NEW
+                "program":       s.program,
+                "academic_year": s.academic_year,
+                "phone":         s.phone_number,   # full number — masking done in React
                 "status":        s.payment_status,
                 "receipt":       s.receipt_url
             })
@@ -197,8 +186,8 @@ def book_room():
         name          = request.form.get('studentName')
         room_num      = request.form.get('roomNumber')
         phone         = request.form.get('phone')
-        program       = request.form.get('program')        # NEW
-        academic_year = request.form.get('academicYear')   # NEW
+        program       = request.form.get('program')
+        academic_year = request.form.get('academicYear')
         file          = request.files.get('receipt')
 
         receipt_url = None
@@ -260,33 +249,6 @@ def accept_student(student_id):
     return jsonify({"error": "Student not found"}), 404
 
 
-@app.route('/api/upload-receipt', methods=['POST'])
-def upload_receipt():
-    try:
-        student_name  = request.form.get('student_name')
-        student_email = request.form.get('student_email')
-        file          = request.files.get('receipt')
-
-        if not file or not student_name:
-            return jsonify({"success": False, "message": "Missing file or name"}), 400
-
-        upload_result = cloudinary.uploader.upload(file, folder="hostel_receipts", resource_type="image")
-        receipt_url   = upload_result['secure_url']
-
-        db.session.add(Receipt(
-            student_name=student_name,
-            student_email=student_email,
-            receipt_url=receipt_url,
-            status='Pending'
-        ))
-        db.session.commit()
-        return jsonify({"success": True, "message": "Receipt uploaded!", "url": receipt_url})
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
 @app.route('/api/students/<int:id>', methods=['DELETE'])
 def delete_student_record(id):
     try:
@@ -296,6 +258,77 @@ def delete_student_record(id):
         db.session.delete(target)
         db.session.commit()
         return jsonify({"success": True, "message": f"Record for {target.full_name} deleted."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# --- COMPLAINT ROUTES ---
+
+@app.route('/api/complaints', methods=['GET'])
+def get_complaints():
+    try:
+        complaints = Complaint.query.order_by(Complaint.created_at.desc()).all()
+        result = []
+        for c in complaints:
+            result.append({
+                "id":           c.id,
+                "student_name": c.student_name,
+                "room_number":  c.room_number,
+                "message":      c.message,
+                "status":       c.status,
+                "admin_reply":  c.admin_reply,
+                "created_at":   c.created_at.strftime('%d %b %Y, %H:%M') if c.created_at else None,
+                "replied_at":   c.replied_at.strftime('%d %b %Y, %H:%M') if c.replied_at else None,
+            })
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/complaints', methods=['POST'])
+def submit_complaint():
+    try:
+        data = request.json
+        db.session.add(Complaint(
+            student_name=data.get('student_name'),
+            room_number=data.get('room_number'),
+            message=data.get('message'),
+            status='Open'
+        ))
+        db.session.commit()
+        return jsonify({"success": True, "message": "Complaint submitted!"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/complaints/<int:complaint_id>/reply', methods=['POST'])
+def reply_complaint(complaint_id):
+    try:
+        complaint = Complaint.query.get(complaint_id)
+        if not complaint:
+            return jsonify({"success": False, "message": "Complaint not found"}), 404
+        data = request.json
+        complaint.admin_reply = data.get('reply')
+        complaint.status      = 'Replied'
+        complaint.replied_at  = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"success": True, "message": "Reply sent!"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/api/complaints/<int:complaint_id>/resolve', methods=['POST'])
+def resolve_complaint(complaint_id):
+    try:
+        complaint = Complaint.query.get(complaint_id)
+        if not complaint:
+            return jsonify({"success": False, "message": "Complaint not found"}), 404
+        complaint.status = 'Resolved'
+        db.session.commit()
+        return jsonify({"success": True, "message": "Marked as resolved!"}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "message": str(e)}), 500
